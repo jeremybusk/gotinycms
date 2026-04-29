@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, List, Popconfirm, Select, Space, Switch, Tabs, Typography, Upload, message, theme } from 'antd'
 import type { UploadProps } from 'antd'
-import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage } from '@mdxeditor/editor'
+import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage, imagePlugin, linkDialogPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, InsertCodeBlock, CodeToggle, ConditionalContents, ChangeCodeMirrorLanguage, Separator, InsertTable, tablePlugin, InsertThematicBreak } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
 import './style.css'
 import { api, Page, SiteSettings } from './api'
@@ -25,6 +25,9 @@ function pathify(s:string) {
 function freshPage() {
   return { slug:'', path:'', title:'', meta_description:'', content_type:'page', markdown:'# Untitled\n', published:false } as Page
 }
+function newID() {
+  return globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
 function Root() {
   const [pages, setPages] = useState<Page[]>([])
@@ -32,11 +35,13 @@ function Root() {
   const [saving, setSaving] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [sourceMode, setSourceMode] = useState(false)
+  const [editorRev, setEditorRev] = useState(0)
   const [palette, setPalette] = useState<Palette>('slate')
   const [adminDark, setAdminDark] = useState(false)
   const [form] = Form.useForm()
   const [settingsForm] = Form.useForm<SiteSettings>()
   const md = Form.useWatch('markdown', form) ?? ''
+  const menuItems = Form.useWatch('menu', settingsForm) || []
   const cfg = useMemo(() => ({ token: palettes[palette], algorithm: adminDark ? theme.darkAlgorithm : theme.defaultAlgorithm }), [palette, adminDark])
 
   async function loadPages() {
@@ -52,6 +57,7 @@ function Root() {
     const r = await api.getPage(slug)
     setActive(r.page)
     form.setFieldsValue(r.page)
+    setEditorRev(rev => rev + 1)
   }
   async function savePage() {
     setSaving(true)
@@ -60,6 +66,7 @@ function Root() {
       const r = await api.savePage({ ...v, slug: slugify(v.slug || v.title || ''), path: pathify(v.path || v.slug || v.title || '') })
       setActive(r.page)
       form.setFieldsValue(r.page)
+      setEditorRev(rev => rev + 1)
       await loadPages()
       message.success('Page saved')
     } catch(e:any) {
@@ -72,7 +79,7 @@ function Root() {
     setSavingSettings(true)
     try {
       const values = settingsForm.getFieldsValue()
-      const menu = (values.menu || []).map(item => ({ ...item, url: pathify(item.url || '') })).filter(item => item.label && item.url)
+      const menu = (values.menu || []).map(item => ({ ...item, id: item.id || newID(), parent_id: item.parent_id || '', url: pathify(item.url || ''), enabled: item.enabled !== false })).filter(item => item.label && item.url)
       const r = await api.saveSettings({ ...values, menu })
       settingsForm.setFieldsValue(r.settings)
       message.success('Site settings saved')
@@ -93,6 +100,7 @@ function Root() {
     setActive(p)
     form.setFieldsValue(p)
     setSourceMode(false)
+    setEditorRev(rev => rev + 1)
   }
 
   useEffect(() => {
@@ -109,12 +117,17 @@ function Root() {
     })
     return api.uploadFile(file.name, data)
   }
+  async function uploadImageForEditor(file: File) {
+    const r = await upload(file)
+    return r.asset.url
+  }
 
   const contentUploadProps: UploadProps = {
     showUploadList: false,
     beforeUpload(file) {
       upload(file).then(r => {
         form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n![${file.name}](${r.asset.url})\n`)
+        setEditorRev(rev => rev + 1)
         message.success('Uploaded')
       }).catch((e:any) => message.error(e.message))
       return false
@@ -175,18 +188,41 @@ function Root() {
             <Form.Item name="markdown" label="Body" className="mdField">
               {sourceMode
                 ? <Input.TextArea rows={22} className="sourceEditor" value={md} onChange={e => form.setFieldValue('markdown', e.target.value)} />
-                : <MDXEditor key={`${active?.slug || 'new'}-${active?.updated_at || ''}`} markdown={md} onChange={v => form.setFieldValue('markdown', v)} plugins={[headingsPlugin(), listsPlugin(), quotePlugin(), thematicBreakPlugin(), markdownShortcutPlugin(), toolbarPlugin({toolbarContents: () => <><UndoRedo /><BoldItalicUnderlineToggles /><ListsToggle /><BlockTypeSelect /><CreateLink /><InsertImage /></>})]} />}
+                : <MDXEditor key={`${active?.slug || 'new'}-${active?.updated_at || ''}-${editorRev}`} markdown={md} onChange={v => form.setFieldValue('markdown', v)} plugins={[
+                  headingsPlugin(),
+                  listsPlugin(),
+                  quotePlugin(),
+                  thematicBreakPlugin(),
+                  linkPlugin(),
+                  linkDialogPlugin(),
+                  imagePlugin({ imageUploadHandler: uploadImageForEditor, imageAutocompleteSuggestions: ['/uploads/'] }),
+                  tablePlugin(),
+                  codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
+                  codeMirrorPlugin({ codeBlockLanguages: { text: 'Plain text', markdown: 'Markdown', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JSX', tsx: 'TSX', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Shell', go: 'Go', sql: 'SQL', yaml: 'YAML', mermaid: 'Mermaid diagram' } }),
+                  markdownShortcutPlugin(),
+                  toolbarPlugin({toolbarContents: () => <ConditionalContents options={[
+                    { when: editor => editor?.editorType === 'codeblock', contents: () => <ChangeCodeMirrorLanguage /> },
+                    { fallback: () => <><UndoRedo /><Separator /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><BlockTypeSelect /><Separator /><CreateLink /><InsertImage /><Separator /><InsertTable /><InsertThematicBreak /><InsertCodeBlock /></> }
+                  ]} />})
+                ]} />}
             </Form.Item>
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', footer_markdown:'', menu:[{label:'Home', url:'/', external:false}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
                 <Typography.Text type="secondary">Logo, favicon, top menu, footer, and public light/dark default.</Typography.Text>
               </div>
               <Button type="primary" htmlType="submit" loading={savingSettings}>Save site</Button>
+            </Space>
+            <Space className="switchGrid" wrap>
+              <Form.Item name="logo_enabled" label="Logo" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="favicon_enabled" label="Favicon" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="menu_enabled" label="Top menu" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="footer_enabled" label="Footer" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="theme_toggle_enabled" label="Guest theme toggle" valuePropName="checked"><Switch /></Form.Item>
             </Space>
             <Form.Item name="site_name" label="Site name" rules={[{required:true}]}><Input /></Form.Item>
             <Space className="assetGrid" align="start">
@@ -199,12 +235,15 @@ function Root() {
             <Typography.Title level={4}>Top menu</Typography.Title>
             <Form.List name="menu">{(fields, { add, remove }) => <>
               {fields.map(field => <Space key={field.key} className="menuRow" align="start">
+                <Form.Item {...field} name={[field.name, 'id']} hidden><Input /></Form.Item>
                 <Form.Item {...field} name={[field.name, 'label']} label="Label" rules={[{required:true}]}><Input placeholder="About" /></Form.Item>
                 <Form.Item {...field} name={[field.name, 'url']} label="URL" rules={[{required:true}]}><Input placeholder="/about or https://..." /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'parent_id']} label="Parent"><Select allowClear placeholder="Top level" options={(menuItems || []).filter((item, i) => i !== field.name && item?.id).map(item => ({label: item.label || item.url || item.id, value: item.id}))} /></Form.Item>
                 <Form.Item {...field} name={[field.name, 'external']} label="External" valuePropName="checked"><Switch /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'enabled']} label="Enabled" valuePropName="checked"><Switch /></Form.Item>
                 <Button danger onClick={() => remove(field.name)}>Remove</Button>
               </Space>)}
-              <Button onClick={() => add({label:'', url:'/', external:false})}>Add menu item</Button>
+              <Button onClick={() => add({id:newID(), parent_id:'', label:'', url:'/', external:false, enabled:true})}>Add menu item</Button>
             </>}</Form.List>
             <Form.Item name="footer_markdown" label="Global footer Markdown" className="footerField"><Input.TextArea rows={6} placeholder="© 2026 Your Company. All rights reserved." /></Form.Item>
           </Form>

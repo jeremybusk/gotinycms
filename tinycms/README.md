@@ -11,6 +11,7 @@ A deliberately small Hugo/WordPress-like CMS:
 - Ant Design React admin UI.
 - MDXEditor WYSIWYG-style Markdown editor.
 - Optional source Markdown editing mode.
+- Links, images, tables, inline code, fenced code blocks, and Mermaid code fences.
 - File/image uploads inserted into Markdown.
 - Global logo, favicon, top menu, public theme, and footer settings.
 - IP CIDR allow/deny middleware.
@@ -82,11 +83,22 @@ The `home` admin slug is reserved for `/` and cannot be deleted.
 The admin `Site` tab manages simple global pieces shared by every public page:
 
 - Logo and favicon upload fields.
-- A top menu builder for internal paths such as `/about` and external URLs.
+- A nested top menu builder for internal paths such as `/about` and external URLs.
 - A Markdown footer shown on every page.
 - Public default theme, with a visitor-side light/dark toggle saved in the browser.
+- Enable/disable switches for logo, favicon, menu, footer, and the visitor theme toggle.
 
 The public menu collapses into a small hamburger menu on mobile.
+
+Mermaid diagrams can be written as fenced code blocks:
+
+````markdown
+```mermaid
+flowchart LR
+  A[Idea] --> B[Page]
+  B --> C[Publish]
+```
+````
 
 ## Config
 

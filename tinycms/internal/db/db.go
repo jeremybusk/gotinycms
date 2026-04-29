@@ -38,18 +38,26 @@ type Asset struct {
 }
 
 type NavItem struct {
+	ID       string `json:"id"`
+	ParentID string `json:"parent_id"`
 	Label    string `json:"label"`
 	URL      string `json:"url"`
 	External bool   `json:"external"`
+	Enabled  bool   `json:"enabled"`
 }
 
 type Settings struct {
-	SiteName       string    `json:"site_name"`
-	LogoURL        string    `json:"logo_url"`
-	FaviconURL     string    `json:"favicon_url"`
-	DefaultTheme   string    `json:"default_theme"`
-	FooterMarkdown string    `json:"footer_markdown"`
-	Menu           []NavItem `json:"menu"`
+	SiteName           string    `json:"site_name"`
+	LogoURL            string    `json:"logo_url"`
+	FaviconURL         string    `json:"favicon_url"`
+	DefaultTheme       string    `json:"default_theme"`
+	FooterMarkdown     string    `json:"footer_markdown"`
+	Menu               []NavItem `json:"menu"`
+	LogoEnabled        bool      `json:"logo_enabled"`
+	FaviconEnabled     bool      `json:"favicon_enabled"`
+	MenuEnabled        bool      `json:"menu_enabled"`
+	FooterEnabled      bool      `json:"footer_enabled"`
+	ThemeToggleEnabled bool      `json:"theme_toggle_enabled"`
 }
 
 func Open(path string) (*Store, error) {
@@ -202,12 +210,25 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
 		return Settings{}, err
 	}
+	if !strings.Contains(raw, "_enabled") {
+		settings.LogoEnabled = true
+		settings.FaviconEnabled = true
+		settings.MenuEnabled = true
+		settings.FooterEnabled = true
+		settings.ThemeToggleEnabled = true
+	}
+	if !strings.Contains(raw, `"enabled"`) {
+		for i := range settings.Menu {
+			settings.Menu[i].Enabled = true
+		}
+	}
 	if settings.SiteName == "" {
 		settings.SiteName = fallbackSiteName
 	}
 	if settings.DefaultTheme == "" {
 		settings.DefaultTheme = "slate"
 	}
+	normalizeSettings(&settings)
 	return settings, nil
 }
 
@@ -221,6 +242,7 @@ func (s *Store) SaveSettings(ctx context.Context, settings Settings) (Settings, 
 	if settings.Menu == nil {
 		settings.Menu = []NavItem{}
 	}
+	normalizeSettings(&settings)
 	raw, err := json.Marshal(settings)
 	if err != nil {
 		return Settings{}, err
@@ -238,12 +260,25 @@ func DefaultSettings(siteName string) Settings {
 		siteName = "TinyCMS"
 	}
 	return Settings{
-		SiteName:       siteName,
-		DefaultTheme:   "light",
-		FooterMarkdown: "© 2026 " + siteName + ". All rights reserved.",
+		SiteName:           siteName,
+		DefaultTheme:       "light",
+		FooterMarkdown:     "© 2026 " + siteName + ". All rights reserved.",
+		LogoEnabled:        true,
+		FaviconEnabled:     true,
+		MenuEnabled:        true,
+		FooterEnabled:      true,
+		ThemeToggleEnabled: true,
 		Menu: []NavItem{
-			{Label: "Home", URL: "/", External: false},
+			{ID: "home", Label: "Home", URL: "/", External: false, Enabled: true},
 		},
+	}
+}
+
+func normalizeSettings(settings *Settings) {
+	for i := range settings.Menu {
+		if settings.Menu[i].ID == "" {
+			settings.Menu[i].ID = fmt.Sprintf("item-%d", i+1)
+		}
 	}
 }
 

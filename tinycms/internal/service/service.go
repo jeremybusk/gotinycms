@@ -178,26 +178,43 @@ func pageMap(p db.Page, body bool) map[string]any {
 func settingsMap(settings db.Settings) map[string]any {
 	menu := make([]any, 0, len(settings.Menu))
 	for _, item := range settings.Menu {
-		menu = append(menu, map[string]any{"label": item.Label, "url": item.URL, "external": item.External})
+		menu = append(menu, map[string]any{
+			"id":        item.ID,
+			"parent_id": item.ParentID,
+			"label":     item.Label,
+			"url":       item.URL,
+			"external":  item.External,
+			"enabled":   item.Enabled,
+		})
 	}
 	return map[string]any{
-		"site_name":       settings.SiteName,
-		"logo_url":        settings.LogoURL,
-		"favicon_url":     settings.FaviconURL,
-		"default_theme":   settings.DefaultTheme,
-		"footer_markdown": settings.FooterMarkdown,
-		"menu":            menu,
+		"site_name":            settings.SiteName,
+		"logo_url":             settings.LogoURL,
+		"favicon_url":          settings.FaviconURL,
+		"default_theme":        settings.DefaultTheme,
+		"footer_markdown":      settings.FooterMarkdown,
+		"menu":                 menu,
+		"logo_enabled":         settings.LogoEnabled,
+		"favicon_enabled":      settings.FaviconEnabled,
+		"menu_enabled":         settings.MenuEnabled,
+		"footer_enabled":       settings.FooterEnabled,
+		"theme_toggle_enabled": settings.ThemeToggleEnabled,
 	}
 }
 
 func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, error) {
 	settings := db.Settings{
-		SiteName:       firstNonEmpty(str(m, "site_name"), fallbackSiteName),
-		LogoURL:        cleanAssetURL(str(m, "logo_url")),
-		FaviconURL:     cleanAssetURL(str(m, "favicon_url")),
-		DefaultTheme:   cleanTheme(str(m, "default_theme")),
-		FooterMarkdown: str(m, "footer_markdown"),
-		Menu:           navItems(m["menu"]),
+		SiteName:           firstNonEmpty(str(m, "site_name"), fallbackSiteName),
+		LogoURL:            cleanAssetURL(str(m, "logo_url")),
+		FaviconURL:         cleanAssetURL(str(m, "favicon_url")),
+		DefaultTheme:       cleanTheme(str(m, "default_theme")),
+		FooterMarkdown:     str(m, "footer_markdown"),
+		Menu:               navItems(m["menu"]),
+		LogoEnabled:        boolean(m, "logo_enabled"),
+		FaviconEnabled:     boolean(m, "favicon_enabled"),
+		MenuEnabled:        boolean(m, "menu_enabled"),
+		FooterEnabled:      boolean(m, "footer_enabled"),
+		ThemeToggleEnabled: boolean(m, "theme_toggle_enabled"),
 	}
 	if settings.SiteName == "" {
 		return db.Settings{}, errors.New("site name required")
@@ -218,7 +235,14 @@ func navItems(v any) []db.NavItem {
 		if label == "" || url == "" {
 			continue
 		}
-		out = append(out, db.NavItem{Label: label, URL: url, External: boolean(m, "external") || strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")})
+		out = append(out, db.NavItem{
+			ID:       cleanID(str(m, "id")),
+			ParentID: cleanID(str(m, "parent_id")),
+			Label:    label,
+			URL:      url,
+			External: boolean(m, "external") || strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://"),
+			Enabled:  boolean(m, "enabled"),
+		})
 	}
 	return out
 }
@@ -264,6 +288,13 @@ func cleanTheme(s string) string {
 		return "dark"
 	}
 	return "light"
+}
+func cleanID(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return slugRe.ReplaceAllString(strings.ToLower(s), "-")
 }
 func cleanAssetURL(s string) string {
 	if strings.HasPrefix(s, "/uploads/") {

@@ -10,7 +10,7 @@ export type Page = {
   created_at:string
   updated_at:string
 }
-export type NavItem = { label:string; url:string; external:boolean }
+export type NavItem = { id:string; parent_id:string; label:string; url:string; external:boolean; enabled:boolean }
 export type SiteSettings = {
   site_name:string
   logo_url:string
@@ -18,6 +18,11 @@ export type SiteSettings = {
   default_theme:'light'|'dark'
   footer_markdown:string
   menu:NavItem[]
+  logo_enabled:boolean
+  favicon_enabled:boolean
+  menu_enabled:boolean
+  footer_enabled:boolean
+  theme_toggle_enabled:boolean
 }
 
 const base = '/cms.v1.CMSService/'

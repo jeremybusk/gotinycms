@@ -1,0 +1,10 @@
+services:
+  tinycms:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./data:/data
+      # Optional MaxMind DB:
+      # - ./GeoLite2-Country.mmdb:/app/GeoLite2-Country.mmdb:ro

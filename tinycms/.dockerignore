@@ -1,0 +1,8 @@
+data
+web/dist
+web/node_modules
+node_modules
+.env
+.git
+.codex
+bin

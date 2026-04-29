@@ -12,6 +12,7 @@ A deliberately small Hugo/WordPress-like CMS:
 - MDXEditor WYSIWYG-style Markdown editor.
 - Optional source Markdown editing mode.
 - Links, images, tables, inline code, fenced code blocks, and Mermaid code fences.
+- Safe rich Markdown shortcodes for Font Awesome icons and cards.
 - File/image uploads inserted into Markdown.
 - Global logo, favicon, top menu, public theme, and footer settings.
 - IP CIDR allow/deny middleware.
@@ -87,6 +88,7 @@ The admin `Site` tab manages simple global pieces shared by every public page:
 - A Markdown footer shown on every page.
 - Public default theme, with a visitor-side light/dark toggle saved in the browser.
 - Enable/disable switches for logo, favicon, menu, footer, and the visitor theme toggle.
+- Optional Font Awesome loading for the icon shortcode.
 
 The public menu collapses into a small hamburger menu on mobile.
 
@@ -99,6 +101,18 @@ flowchart LR
   B --> C[Publish]
 ```
 ````
+
+Small rich-content cards and icons can be written without enabling raw HTML:
+
+```markdown
+Build faster {{icon:rocket}} with simple Markdown.
+
+:::card title="Simple operations" icon="gauge-high"
+Use **pages**, nested menus, uploads, and Markdown without a heavy page builder.
+:::
+```
+
+Icon names map to Font Awesome solid classes, so `{{icon:rocket}}` becomes `fa-solid fa-rocket`. Advanced classes such as `{{icon:fa-brands fa-github}}` are also accepted, but only letters, numbers, spaces, and dashes are allowed.
 
 ## Config
 

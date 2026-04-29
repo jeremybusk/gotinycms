@@ -209,7 +209,7 @@ function Root() {
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
@@ -223,6 +223,7 @@ function Root() {
               <Form.Item name="menu_enabled" label="Top menu" valuePropName="checked"><Switch /></Form.Item>
               <Form.Item name="footer_enabled" label="Footer" valuePropName="checked"><Switch /></Form.Item>
               <Form.Item name="theme_toggle_enabled" label="Guest theme toggle" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="icons_enabled" label="Font Awesome icons" valuePropName="checked"><Switch /></Form.Item>
             </Space>
             <Form.Item name="site_name" label="Site name" rules={[{required:true}]}><Input /></Form.Item>
             <Space className="assetGrid" align="start">

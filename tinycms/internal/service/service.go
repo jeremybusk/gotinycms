@@ -199,6 +199,7 @@ func settingsMap(settings db.Settings) map[string]any {
 		"menu_enabled":         settings.MenuEnabled,
 		"footer_enabled":       settings.FooterEnabled,
 		"theme_toggle_enabled": settings.ThemeToggleEnabled,
+		"icons_enabled":        settings.IconsEnabled,
 	}
 }
 
@@ -215,6 +216,7 @@ func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, er
 		MenuEnabled:        boolean(m, "menu_enabled"),
 		FooterEnabled:      boolean(m, "footer_enabled"),
 		ThemeToggleEnabled: boolean(m, "theme_toggle_enabled"),
+		IconsEnabled:       boolean(m, "icons_enabled"),
 	}
 	if settings.SiteName == "" {
 		return db.Settings{}, errors.New("site name required")

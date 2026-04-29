@@ -23,6 +23,7 @@ export type SiteSettings = {
   menu_enabled:boolean
   footer_enabled:boolean
   theme_toggle_enabled:boolean
+  icons_enabled:boolean
 }
 
 const base = '/cms.v1.CMSService/'

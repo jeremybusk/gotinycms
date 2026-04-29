@@ -58,6 +58,7 @@ type Settings struct {
 	MenuEnabled        bool      `json:"menu_enabled"`
 	FooterEnabled      bool      `json:"footer_enabled"`
 	ThemeToggleEnabled bool      `json:"theme_toggle_enabled"`
+	IconsEnabled       bool      `json:"icons_enabled"`
 }
 
 func Open(path string) (*Store, error) {
@@ -216,6 +217,7 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 		settings.MenuEnabled = true
 		settings.FooterEnabled = true
 		settings.ThemeToggleEnabled = true
+		settings.IconsEnabled = true
 	}
 	if !strings.Contains(raw, `"enabled"`) {
 		for i := range settings.Menu {
@@ -268,6 +270,7 @@ func DefaultSettings(siteName string) Settings {
 		MenuEnabled:        true,
 		FooterEnabled:      true,
 		ThemeToggleEnabled: true,
+		IconsEnabled:       true,
 		Menu: []NavItem{
 			{ID: "home", Label: "Home", URL: "/", External: false, Enabled: true},
 		},

@@ -32,6 +32,15 @@ func (p *Public) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	settings, err := p.Store.GetSettings(r.Context(), p.SiteName)
+	if err != nil {
+		http.Error(w, "settings error", 500)
+		return
+	}
+	if r.URL.Path == "/search" {
+		p.serveSearch(w, r, settings)
+		return
+	}
 	routePath := "/" + strings.Trim(r.URL.Path, "/")
 	if routePath == "/" {
 		routePath = "/"
@@ -39,11 +48,6 @@ func (p *Public) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	page, err := p.Store.GetPublishedByPath(r.Context(), routePath)
 	if err != nil {
 		http.NotFound(w, r)
-		return
-	}
-	settings, err := p.Store.GetSettings(r.Context(), p.SiteName)
-	if err != nil {
-		http.Error(w, "settings error", 500)
 		return
 	}
 	body, err := p.render(page.Markdown)
@@ -67,6 +71,7 @@ func (p *Public) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Body":               body,
 		"Footer":             footer,
 		"MenuHTML":           renderMenu(settings.Menu),
+		"SearchHTML":         "",
 		"LogoURL":            settings.LogoURL,
 		"FaviconURL":         settings.FaviconURL,
 		"DefaultTheme":       settings.DefaultTheme,
@@ -76,7 +81,51 @@ func (p *Public) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"FooterEnabled":      settings.FooterEnabled,
 		"ThemeToggleEnabled": settings.ThemeToggleEnabled,
 		"IconsEnabled":       settings.IconsEnabled,
+		"SearchEnabled":      settings.SearchEnabled,
+		"NavLayout":          settings.NavLayout,
+		"SideNav":            settings.NavLayout == "side",
 		"HasMermaid":         strings.Contains(page.Markdown, "```mermaid"),
+	})
+}
+
+func (p *Public) serveSearch(w http.ResponseWriter, r *http.Request, settings db.Settings) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	pages, err := p.Store.SearchPages(r.Context(), query)
+	if err != nil {
+		http.Error(w, "search error", 500)
+		return
+	}
+	var b strings.Builder
+	b.WriteString(`<h1>Search</h1><form class="searchPage" action="/search" method="get"><input name="q" value="`)
+	b.WriteString(template.HTMLEscapeString(query))
+	b.WriteString(`" placeholder="Search pages and posts"><button type="submit">Search</button></form>`)
+	if query != "" {
+		fmt.Fprintf(&b, `<p class="muted">%d result(s) for <strong>%s</strong></p>`, len(pages), template.HTMLEscapeString(query))
+		b.WriteString(`<div class="resultList">`)
+		for _, page := range pages {
+			fmt.Fprintf(&b, `<a class="result" href="%s"><span>%s</span><strong>%s</strong><small>%s</small></a>`, template.HTMLEscapeString(page.Path), template.HTMLEscapeString(page.ContentType), template.HTMLEscapeString(page.Title), template.HTMLEscapeString(firstNonEmpty(page.MetaDescription, page.Tags, page.Path)))
+		}
+		b.WriteString(`</div>`)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = publicTpl.Execute(w, map[string]any{
+		"SiteName":           settings.SiteName,
+		"Title":              "Search",
+		"Body":               template.HTML(b.String()),
+		"Footer":             template.HTML(""),
+		"MenuHTML":           renderMenu(settings.Menu),
+		"LogoURL":            settings.LogoURL,
+		"FaviconURL":         settings.FaviconURL,
+		"DefaultTheme":       settings.DefaultTheme,
+		"LogoEnabled":        settings.LogoEnabled,
+		"FaviconEnabled":     settings.FaviconEnabled,
+		"MenuEnabled":        settings.MenuEnabled,
+		"FooterEnabled":      false,
+		"ThemeToggleEnabled": settings.ThemeToggleEnabled,
+		"IconsEnabled":       settings.IconsEnabled,
+		"SearchEnabled":      settings.SearchEnabled,
+		"NavLayout":          settings.NavLayout,
+		"SideNav":            settings.NavLayout == "side",
 	})
 }
 
@@ -222,5 +271,14 @@ func externalAttrs(external bool) string {
 	return ""
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 var publicTpl = template.Must(template.New("page").Parse(`<!doctype html><html lang="en" data-theme="{{.DefaultTheme}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{.Title}} · {{.SiteName}}</title>{{if .MetaDescription}}<meta name="description" content="{{.MetaDescription}}">{{end}}{{if and .FaviconEnabled .FaviconURL}}<link rel="icon" href="{{.FaviconURL}}">{{end}}{{if .IconsEnabled}}<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">{{end}}<style>
-:root{--bg:#f4f7fb;--paper:#ffffff;--ink:#172033;--muted:#657085;--accent:#2563eb;--line:#d8dee9;--soft:#edf2f7;--shadow:#0f172a14}[data-theme=dark]{--bg:#0f172a;--paper:#172033;--ink:#e5edf8;--muted:#9fb0c7;--accent:#7ab7ff;--line:#2c3b52;--soft:#111827;--shadow:#00000040}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,var(--soft),var(--bg) 36rem);color:var(--ink);font:16px/1.68 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}a{color:var(--accent)}img{max-width:100%;height:auto;border-radius:14px}pre{overflow:auto;background:#0b1220;color:#f5f7fb;padding:16px;border-radius:14px}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.site{min-height:100vh;display:flex;flex-direction:column}.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}.bar{max-width:1060px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:18px}.brand{display:flex;align-items:center;gap:10px;margin-right:auto;color:var(--ink);font-weight:800;text-decoration:none;letter-spacing:-.02em}.brand img{width:34px;height:34px;object-fit:contain;border-radius:8px}.nav{display:flex;align-items:center;gap:4px}.nav a{color:var(--ink);text-decoration:none;padding:8px 11px;border-radius:999px}.nav a:hover{background:var(--soft)}.navGroup{position:relative}.subnav{display:none;position:absolute;right:0;top:100%;min-width:190px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:0 18px 50px var(--shadow)}.navGroup:hover>.subnav,.navGroup:focus-within>.subnav{display:flex;flex-direction:column}.subnav .subnav{position:static;box-shadow:none;border:0;border-left:1px solid var(--line);border-radius:0;margin-left:12px}.theme,.menuBtn{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:8px 11px;cursor:pointer}.menuBtn{display:none}.wrap{width:min(920px,calc(100% - 32px));margin:42px auto;flex:1}.card{background:var(--paper);border:1px solid var(--line);border-radius:24px;box-shadow:0 20px 60px var(--shadow);padding:clamp(24px,5vw,52px)}article h1:first-child{margin-top:0}h1,h2,h3{line-height:1.15;letter-spacing:-.03em}blockquote{border-left:4px solid var(--accent);margin-left:0;padding-left:16px;color:var(--muted)}.cms-icon{display:inline-grid;place-items:center;color:var(--accent);margin-inline:.08em}.cms-card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--paper),var(--soft));padding:20px;margin:22px 0;box-shadow:0 14px 34px var(--shadow)}.cms-card-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}.cms-card-head .cms-icon{width:38px;height:38px;border-radius:12px;background:color-mix(in srgb,var(--accent) 13%,transparent);font-size:18px}.cms-card h3{margin:0}.cms-card-body>*:first-child{margin-top:0}.cms-card-body>*:last-child{margin-bottom:0}.mermaid{background:var(--soft);color:var(--ink);padding:16px;border-radius:14px;overflow:auto}.foot{border-top:1px solid var(--line);color:var(--muted);padding:28px 22px;text-align:center}.foot>*{max-width:920px;margin-left:auto;margin-right:auto}.foot p{margin:.25rem auto}@media(max-width:720px){.bar{flex-wrap:wrap}.menuBtn{display:inline-block}.nav{display:none;width:100%;flex-direction:column;align-items:stretch;padding-top:10px}.nav.open{display:flex}.nav a{padding:11px 12px}.navGroup{display:flex;flex-direction:column}.subnav{position:static;display:flex;background:transparent;box-shadow:none;border:0;border-left:1px solid var(--line);border-radius:0;margin-left:14px;padding:2px 0 2px 10px}.wrap{margin:24px auto}.card{border-radius:18px}}</style></head><body><div class="site"><header class="top"><div class="bar"><a class="brand" href="/">{{if and .LogoEnabled .LogoURL}}<img src="{{.LogoURL}}" alt="">{{end}}<span>{{.SiteName}}</span></a>{{if .MenuEnabled}}<button class="menuBtn" type="button" aria-expanded="false" aria-controls="nav">Menu</button><nav class="nav" id="nav">{{.MenuHTML}}</nav>{{end}}{{if .ThemeToggleEnabled}}<button class="theme" type="button">Theme</button>{{end}}</div></header><main class="wrap"><section class="card"><article>{{.Body}}</article></section></main>{{if .FooterEnabled}}<footer class="foot">{{.Footer}}</footer>{{end}}</div>{{if .ThemeToggleEnabled}}<script>(function(){var root=document.documentElement;var saved=localStorage.getItem('tinycms-theme');if(saved){root.dataset.theme=saved}var theme=document.querySelector('.theme');if(theme){theme.onclick=function(){var next=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=next;localStorage.setItem('tinycms-theme',next)}};var btn=document.querySelector('.menuBtn');var nav=document.querySelector('#nav');if(btn&&nav){btn.onclick=function(){var open=nav.classList.toggle('open');btn.setAttribute('aria-expanded',open?'true':'false')}}})()</script>{{else}}<script>(function(){var btn=document.querySelector('.menuBtn');var nav=document.querySelector('#nav');if(btn&&nav){btn.onclick=function(){var open=nav.classList.toggle('open');btn.setAttribute('aria-expanded',open?'true':'false')}}})()</script>{{end}}{{if .HasMermaid}}<script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';document.querySelectorAll('pre code.language-mermaid').forEach(function(code){var div=document.createElement('div');div.className='mermaid';div.textContent=code.textContent;code.parentElement.replaceWith(div)});mermaid.initialize({startOnLoad:true,theme:document.documentElement.dataset.theme==='dark'?'dark':'default'});</script>{{end}}</body></html>`))
+:root{--bg:#f4f7fb;--paper:#ffffff;--ink:#172033;--muted:#657085;--accent:#2563eb;--line:#d8dee9;--soft:#edf2f7;--shadow:#0f172a14}[data-theme=dark]{--bg:#0f172a;--paper:#172033;--ink:#e5edf8;--muted:#9fb0c7;--accent:#7ab7ff;--line:#2c3b52;--soft:#111827;--shadow:#00000040}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,var(--soft),var(--bg) 36rem);color:var(--ink);font:16px/1.68 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}a{color:var(--accent)}img{max-width:100%;height:auto;border-radius:14px}pre{overflow:auto;background:#0b1220;color:#f5f7fb;padding:16px;border-radius:14px}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.site{min-height:100vh;display:flex;flex-direction:column}.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}.bar{max-width:1060px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:18px}.brand{display:flex;align-items:center;gap:10px;margin-right:auto;color:var(--ink);font-weight:800;text-decoration:none;letter-spacing:-.02em}.brand img{width:34px;height:34px;object-fit:contain;border-radius:8px}.nav{display:flex;align-items:center;gap:4px}.nav a{color:var(--ink);text-decoration:none;padding:8px 11px;border-radius:999px}.nav a:hover{background:var(--soft)}.navGroup{position:relative}.subnav{display:none;position:absolute;right:0;top:100%;min-width:190px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:0 18px 50px var(--shadow)}.navGroup:hover>.subnav,.navGroup:focus-within>.subnav{display:flex;flex-direction:column}.subnav .subnav{position:static;box-shadow:none;border:0;border-left:1px solid var(--line);border-radius:0;margin-left:12px}.theme,.menuBtn,.drawerBtn{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:8px 11px;cursor:pointer}.menuBtn{display:none}.drawerBtn{display:none}.searchMenu{position:relative}.searchMenu summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:7px 11px}.searchMenu summary::-webkit-details-marker{display:none}.searchMenu form{position:absolute;right:0;top:calc(100% + 8px);display:flex;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 18px 50px var(--shadow)}.searchMenu input,.searchPage input,.drawerSearch input{border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink);padding:9px 12px}.searchMenu button,.searchPage button,.drawerSearch button{border:0;border-radius:999px;background:var(--accent);color:white;padding:9px 13px}.searchPage{display:flex;gap:8px;margin:18px 0}.searchPage input{flex:1}.muted{color:var(--muted)}.resultList{display:grid;gap:12px}.result{display:grid;gap:4px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--soft)}.result span{font-size:12px;text-transform:uppercase;color:var(--accent);font-weight:800}.result small{color:var(--muted)}.drawerShade{position:fixed;inset:0;background:#02061766;z-index:9;opacity:0;pointer-events:none;transition:opacity .22s ease}.drawer{position:fixed;inset:0 auto 0 0;width:min(320px,86vw);background:var(--paper);border-right:1px solid var(--line);z-index:10;transform:translateX(-105%);transition:transform .26s cubic-bezier(.2,.8,.2,1);padding:18px;box-shadow:20px 0 60px var(--shadow);overflow:auto}.drawer.open{transform:translateX(0)}.drawerShade.open{opacity:1;pointer-events:auto}.drawerBrand{margin-bottom:18px}.drawerSearch{display:flex;gap:8px;margin-bottom:16px}.drawerSearch input{min-width:0;flex:1}.drawerNav{display:flex;flex-direction:column;gap:4px}.drawerNav a{color:var(--ink);text-decoration:none;padding:10px 12px;border-radius:12px}.drawerNav a:hover{background:var(--soft)}.drawerNav .subnav{position:static;display:flex;background:transparent;box-shadow:none;border:0;border-left:1px solid var(--line);border-radius:0;margin-left:14px;padding:2px 0 2px 10px}.drawerNav .navGroup{display:flex;flex-direction:column}.wrap{width:min(920px,calc(100% - 32px));margin:42px auto;flex:1}.card{background:var(--paper);border:1px solid var(--line);border-radius:24px;box-shadow:0 20px 60px var(--shadow);padding:clamp(24px,5vw,52px)}article h1:first-child{margin-top:0}h1,h2,h3{line-height:1.15;letter-spacing:-.03em}blockquote{border-left:4px solid var(--accent);margin-left:0;padding-left:16px;color:var(--muted)}.cms-icon{display:inline-grid;place-items:center;color:var(--accent);margin-inline:.08em}.cms-card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--paper),var(--soft));padding:20px;margin:22px 0;box-shadow:0 14px 34px var(--shadow)}.cms-card-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}.cms-card-head .cms-icon{width:38px;height:38px;border-radius:12px;background:color-mix(in srgb,var(--accent) 13%,transparent);font-size:18px}.cms-card h3{margin:0}.cms-card-body>*:first-child{margin-top:0}.cms-card-body>*:last-child{margin-bottom:0}.mermaid{background:var(--soft);color:var(--ink);padding:16px;border-radius:14px;overflow:auto}.foot{border-top:1px solid var(--line);color:var(--muted);padding:28px 22px;text-align:center}.foot>*{max-width:920px;margin-left:auto;margin-right:auto}.foot p{margin:.25rem auto}@media(min-width:721px){.siteSide .bar{max-width:none}.siteSide .menuBtn,.siteSide .nav{display:none}.siteSide .drawerBtn{display:inline-block}}@media(max-width:720px){.bar{flex-wrap:wrap}.menuBtn{display:inline-block}.nav{display:none;width:100%;flex-direction:column;align-items:stretch;padding-top:10px}.nav.open{display:flex}.nav a{padding:11px 12px}.navGroup{display:flex;flex-direction:column}.subnav{position:static;display:flex;background:transparent;box-shadow:none;border:0;border-left:1px solid var(--line);border-radius:0;margin-left:14px;padding:2px 0 2px 10px}.wrap{margin:24px auto}.card{border-radius:18px}}</style></head><body>{{if .SideNav}}<div class="drawerShade"></div><aside class="drawer"><a class="brand drawerBrand" href="/">{{if and .LogoEnabled .LogoURL}}<img src="{{.LogoURL}}" alt="">{{end}}<span>{{.SiteName}}</span></a>{{if .SearchEnabled}}<form class="drawerSearch" action="/search" method="get"><input name="q" placeholder="Search"><button type="submit">⌕</button></form>{{end}}<nav class="drawerNav">{{.MenuHTML}}</nav></aside>{{end}}<div class="site {{if .SideNav}}siteSide{{end}}"><header class="top"><div class="bar"><a class="brand" href="/">{{if and .LogoEnabled .LogoURL}}<img src="{{.LogoURL}}" alt="">{{end}}<span>{{.SiteName}}</span></a>{{if .MenuEnabled}}<button class="menuBtn" type="button" aria-expanded="false" aria-controls="nav">Menu</button><nav class="nav" id="nav">{{.MenuHTML}}</nav>{{end}}{{if .SearchEnabled}}<details class="searchMenu"><summary aria-label="Search">⌕</summary><form action="/search" method="get"><input name="q" placeholder="Search"><button type="submit">Go</button></form></details>{{end}}{{if .ThemeToggleEnabled}}<button class="theme" type="button">Theme</button>{{end}}{{if .SideNav}}<button class="drawerBtn" type="button" aria-expanded="false">☰</button>{{end}}</div></header><main class="wrap"><section class="card"><article>{{.Body}}</article></section></main>{{if .FooterEnabled}}<footer class="foot">{{.Footer}}</footer>{{end}}</div>{{if .ThemeToggleEnabled}}<script>(function(){var root=document.documentElement;var saved=localStorage.getItem('tinycms-theme');if(saved){root.dataset.theme=saved}var theme=document.querySelector('.theme');if(theme){theme.onclick=function(){var next=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=next;localStorage.setItem('tinycms-theme',next)}};var btn=document.querySelector('.menuBtn');var nav=document.querySelector('#nav');if(btn&&nav){btn.onclick=function(){var open=nav.classList.toggle('open');btn.setAttribute('aria-expanded',open?'true':'false')}}var dbtn=document.querySelector('.drawerBtn');var drawer=document.querySelector('.drawer');var shade=document.querySelector('.drawerShade');function setDrawer(open){if(drawer&&shade){drawer.classList.toggle('open',open);shade.classList.toggle('open',open);if(dbtn){dbtn.setAttribute('aria-expanded',open?'true':'false')}}}if(dbtn){dbtn.onclick=function(){setDrawer(!drawer.classList.contains('open'))}}if(shade){shade.onclick=function(){setDrawer(false)}}})()</script>{{else}}<script>(function(){var btn=document.querySelector('.menuBtn');var nav=document.querySelector('#nav');if(btn&&nav){btn.onclick=function(){var open=nav.classList.toggle('open');btn.setAttribute('aria-expanded',open?'true':'false')}}var dbtn=document.querySelector('.drawerBtn');var drawer=document.querySelector('.drawer');var shade=document.querySelector('.drawerShade');function setDrawer(open){if(drawer&&shade){drawer.classList.toggle('open',open);shade.classList.toggle('open',open);if(dbtn){dbtn.setAttribute('aria-expanded',open?'true':'false')}}}if(dbtn){dbtn.onclick=function(){setDrawer(!drawer.classList.contains('open'))}}if(shade){shade.onclick=function(){setDrawer(false)}}})()</script>{{end}}{{if .HasMermaid}}<script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';document.querySelectorAll('pre code.language-mermaid').forEach(function(code){var div=document.createElement('div');div.className='mermaid';div.textContent=code.textContent;code.parentElement.replaceWith(div)});mermaid.initialize({startOnLoad:true,theme:document.documentElement.dataset.theme==='dark'?'dark':'default'});</script>{{end}}</body></html>`))

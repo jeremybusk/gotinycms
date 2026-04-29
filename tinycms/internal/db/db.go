@@ -22,6 +22,7 @@ type Page struct {
 	Title           string `json:"title"`
 	MetaDescription string `json:"meta_description"`
 	ContentType     string `json:"content_type"`
+	Tags            string `json:"tags"`
 	Markdown        string `json:"markdown,omitempty"`
 	Published       bool   `json:"published"`
 	CreatedAt       string `json:"created_at"`
@@ -59,6 +60,8 @@ type Settings struct {
 	FooterEnabled      bool      `json:"footer_enabled"`
 	ThemeToggleEnabled bool      `json:"theme_toggle_enabled"`
 	IconsEnabled       bool      `json:"icons_enabled"`
+	SearchEnabled      bool      `json:"search_enabled"`
+	NavLayout          string    `json:"nav_layout"`
 }
 
 func Open(path string) (*Store, error) {
@@ -94,6 +97,7 @@ CREATE TABLE IF NOT EXISTS pages (
   title TEXT NOT NULL,
   meta_description TEXT NOT NULL DEFAULT '',
   content_type TEXT NOT NULL DEFAULT 'page',
+  tags TEXT NOT NULL DEFAULT '',
   markdown TEXT NOT NULL DEFAULT '',
   published INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -123,6 +127,7 @@ WHERE NOT EXISTS (SELECT 1 FROM pages WHERE slug='home');`)
 		`ALTER TABLE pages ADD COLUMN path TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE pages ADD COLUMN meta_description TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE pages ADD COLUMN content_type TEXT NOT NULL DEFAULT 'page'`,
+		`ALTER TABLE pages ADD COLUMN tags TEXT NOT NULL DEFAULT ''`,
 	} {
 		if _, err := s.DB.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return err
@@ -137,7 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_pages_published_path ON pages(published, path);`)
 }
 
 func (s *Store) ListPages(ctx context.Context) ([]Page, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,published,created_at,updated_at FROM pages ORDER BY updated_at DESC`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,tags,published,created_at,updated_at FROM pages ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +151,7 @@ func (s *Store) ListPages(ctx context.Context) ([]Page, error) {
 	for rows.Next() {
 		var p Page
 		var pub int
-		if err := rows.Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &pub, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Tags, &pub, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		p.Published = pub == 1
@@ -158,7 +163,7 @@ func (s *Store) ListPages(ctx context.Context) ([]Page, error) {
 func (s *Store) GetPage(ctx context.Context, slug string) (Page, error) {
 	var p Page
 	var pub int
-	err := s.DB.QueryRowContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,markdown,published,created_at,updated_at FROM pages WHERE slug=?`, slug).Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Markdown, &pub, &p.CreatedAt, &p.UpdatedAt)
+	err := s.DB.QueryRowContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,tags,markdown,published,created_at,updated_at FROM pages WHERE slug=?`, slug).Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Tags, &p.Markdown, &pub, &p.CreatedAt, &p.UpdatedAt)
 	p.Published = pub == 1
 	return p, err
 }
@@ -166,7 +171,7 @@ func (s *Store) GetPage(ctx context.Context, slug string) (Page, error) {
 func (s *Store) GetPublishedByPath(ctx context.Context, path string) (Page, error) {
 	var p Page
 	var pub int
-	err := s.DB.QueryRowContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,markdown,published,created_at,updated_at FROM pages WHERE path=? AND published=1`, path).Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Markdown, &pub, &p.CreatedAt, &p.UpdatedAt)
+	err := s.DB.QueryRowContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,tags,markdown,published,created_at,updated_at FROM pages WHERE path=? AND published=1`, path).Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Tags, &p.Markdown, &pub, &p.CreatedAt, &p.UpdatedAt)
 	p.Published = pub == 1
 	return p, err
 }
@@ -176,12 +181,38 @@ func (s *Store) SavePage(ctx context.Context, p Page) (Page, error) {
 		return Page{}, errors.New("slug, path, and title required")
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO pages(slug,path,title,meta_description,content_type,markdown,published,updated_at) VALUES(?,?,?,?,?,?,?,?)
-ON CONFLICT(slug) DO UPDATE SET path=excluded.path, title=excluded.title, meta_description=excluded.meta_description, content_type=excluded.content_type, markdown=excluded.markdown, published=excluded.published, updated_at=excluded.updated_at`, p.Slug, p.Path, p.Title, p.MetaDescription, p.ContentType, p.Markdown, boolInt(p.Published), now)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO pages(slug,path,title,meta_description,content_type,tags,markdown,published,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+ON CONFLICT(slug) DO UPDATE SET path=excluded.path, title=excluded.title, meta_description=excluded.meta_description, content_type=excluded.content_type, tags=excluded.tags, markdown=excluded.markdown, published=excluded.published, updated_at=excluded.updated_at`, p.Slug, p.Path, p.Title, p.MetaDescription, p.ContentType, p.Tags, p.Markdown, boolInt(p.Published), now)
 	if err != nil {
 		return Page{}, err
 	}
 	return s.GetPage(ctx, p.Slug)
+}
+
+func (s *Store) SearchPages(ctx context.Context, query string) ([]Page, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	like := "%" + query + "%"
+	rows, err := s.DB.QueryContext(ctx, `SELECT id,slug,path,title,meta_description,content_type,tags,published,created_at,updated_at FROM pages
+WHERE published=1 AND (title LIKE ? OR meta_description LIKE ? OR tags LIKE ? OR markdown LIKE ?)
+ORDER BY updated_at DESC LIMIT 50`, like, like, like, like)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var pages []Page
+	for rows.Next() {
+		var p Page
+		var pub int
+		if err := rows.Scan(&p.ID, &p.Slug, &p.Path, &p.Title, &p.MetaDescription, &p.ContentType, &p.Tags, &pub, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		p.Published = pub == 1
+		pages = append(pages, p)
+	}
+	return pages, rows.Err()
 }
 
 func (s *Store) DeletePage(ctx context.Context, slug string) error {
@@ -218,6 +249,7 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 		settings.FooterEnabled = true
 		settings.ThemeToggleEnabled = true
 		settings.IconsEnabled = true
+		settings.SearchEnabled = true
 	}
 	if !strings.Contains(raw, `"enabled"`) {
 		for i := range settings.Menu {
@@ -230,6 +262,9 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if settings.DefaultTheme == "" {
 		settings.DefaultTheme = "slate"
 	}
+	if settings.NavLayout == "" {
+		settings.NavLayout = "top"
+	}
 	normalizeSettings(&settings)
 	return settings, nil
 }
@@ -240,6 +275,9 @@ func (s *Store) SaveSettings(ctx context.Context, settings Settings) (Settings, 
 	}
 	if settings.DefaultTheme != "dark" {
 		settings.DefaultTheme = "light"
+	}
+	if settings.NavLayout != "side" {
+		settings.NavLayout = "top"
 	}
 	if settings.Menu == nil {
 		settings.Menu = []NavItem{}
@@ -271,6 +309,8 @@ func DefaultSettings(siteName string) Settings {
 		FooterEnabled:      true,
 		ThemeToggleEnabled: true,
 		IconsEnabled:       true,
+		SearchEnabled:      true,
+		NavLayout:          "top",
 		Menu: []NavItem{
 			{ID: "home", Label: "Home", URL: "/", External: false, Enabled: true},
 		},

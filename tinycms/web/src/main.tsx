@@ -23,7 +23,7 @@ function pathify(s:string) {
   return path ? `/${path}` : '/'
 }
 function freshPage() {
-  return { slug:'', path:'', title:'', meta_description:'', content_type:'page', markdown:'# Untitled\n', published:false } as Page
+  return { slug:'', path:'', title:'', meta_description:'', content_type:'page', tags:'', markdown:'# Untitled\n', published:false } as Page
 }
 function newID() {
   return globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -184,6 +184,7 @@ function Root() {
               <Form.Item name="published" label="Published" valuePropName="checked"><Switch /></Form.Item>
             </Space>
             <Form.Item name="meta_description" label="SEO description"><Input.TextArea rows={2} maxLength={180} showCount placeholder="Short search/social description for this route." /></Form.Item>
+            <Form.Item name="tags" label="Tags"><Input placeholder="news, services, security" /></Form.Item>
             <Upload {...contentUploadProps}><Button>Upload image/file and insert Markdown link</Button></Upload>
             <Form.Item name="markdown" label="Body" className="mdField">
               {sourceMode
@@ -209,7 +210,7 @@ function Root() {
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
@@ -224,6 +225,7 @@ function Root() {
               <Form.Item name="footer_enabled" label="Footer" valuePropName="checked"><Switch /></Form.Item>
               <Form.Item name="theme_toggle_enabled" label="Guest theme toggle" valuePropName="checked"><Switch /></Form.Item>
               <Form.Item name="icons_enabled" label="Font Awesome icons" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="search_enabled" label="Search" valuePropName="checked"><Switch /></Form.Item>
             </Space>
             <Form.Item name="site_name" label="Site name" rules={[{required:true}]}><Input /></Form.Item>
             <Space className="assetGrid" align="start">
@@ -233,6 +235,7 @@ function Root() {
               <Upload {...settingsUploadProps('favicon_url')}><Button>Upload favicon</Button></Upload>
             </Space>
             <Form.Item name="default_theme" label="Public default theme"><Select options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} /></Form.Item>
+            <Form.Item name="nav_layout" label="Public navigation layout"><Select options={[{label:'Top menu', value:'top'}, {label:'Side drawer', value:'side'}]} /></Form.Item>
             <Typography.Title level={4}>Top menu</Typography.Title>
             <Form.List name="menu">{(fields, { add, remove }) => <>
               {fields.map(field => <Space key={field.key} className="menuRow" align="start">

@@ -6,6 +6,7 @@ export type Page = {
   meta_description:string
   content_type:'page'|'post'
   markdown?:string
+  tags:string
   published:boolean
   created_at:string
   updated_at:string
@@ -24,6 +25,8 @@ export type SiteSettings = {
   footer_enabled:boolean
   theme_toggle_enabled:boolean
   icons_enabled:boolean
+  search_enabled:boolean
+  nav_layout:'top'|'side'
 }
 
 const base = '/cms.v1.CMSService/'

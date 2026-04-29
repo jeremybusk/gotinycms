@@ -8,6 +8,7 @@ A deliberately small Hugo/WordPress-like CMS:
 - Public Markdown pages rendered server-side with Goldmark GFM.
 - Per-content public routes such as `/`, `/about`, and `/blog/news`.
 - Page/post content types plus SEO descriptions for published routes.
+- Simple tags and public search across title, description, tags, and body.
 - Ant Design React admin UI.
 - MDXEditor WYSIWYG-style Markdown editor.
 - Optional source Markdown editing mode.
@@ -85,10 +86,12 @@ The admin `Site` tab manages simple global pieces shared by every public page:
 
 - Logo and favicon upload fields.
 - A nested top menu builder for internal paths such as `/about` and external URLs.
+- Public navigation layout selector: top menu or smooth side drawer.
 - A Markdown footer shown on every page.
 - Public default theme, with a visitor-side light/dark toggle saved in the browser.
 - Enable/disable switches for logo, favicon, menu, footer, and the visitor theme toggle.
 - Optional Font Awesome loading for the icon shortcode.
+- Public search toggle with a menu search control and `/search?q=...` results page.
 
 The public menu collapses into a small hamburger menu on mobile.
 

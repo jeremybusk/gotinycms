@@ -86,6 +86,7 @@ func (s *Service) SavePage(ctx context.Context, req *connect.Request[structpb.St
 		Title:           str(m, "title"),
 		MetaDescription: str(m, "meta_description"),
 		ContentType:     cleanContentType(str(m, "content_type")),
+		Tags:            cleanTags(str(m, "tags")),
 		Markdown:        str(m, "markdown"),
 		Published:       boolean(m, "published"),
 	})
@@ -165,6 +166,7 @@ func pageMap(p db.Page, body bool) map[string]any {
 		"title":            p.Title,
 		"meta_description": p.MetaDescription,
 		"content_type":     p.ContentType,
+		"tags":             p.Tags,
 		"published":        p.Published,
 		"created_at":       p.CreatedAt,
 		"updated_at":       p.UpdatedAt,
@@ -200,6 +202,8 @@ func settingsMap(settings db.Settings) map[string]any {
 		"footer_enabled":       settings.FooterEnabled,
 		"theme_toggle_enabled": settings.ThemeToggleEnabled,
 		"icons_enabled":        settings.IconsEnabled,
+		"search_enabled":       settings.SearchEnabled,
+		"nav_layout":           settings.NavLayout,
 	}
 }
 
@@ -217,6 +221,8 @@ func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, er
 		FooterEnabled:      boolean(m, "footer_enabled"),
 		ThemeToggleEnabled: boolean(m, "theme_toggle_enabled"),
 		IconsEnabled:       boolean(m, "icons_enabled"),
+		SearchEnabled:      boolean(m, "search_enabled"),
+		NavLayout:          cleanNavLayout(str(m, "nav_layout")),
 	}
 	if settings.SiteName == "" {
 		return db.Settings{}, errors.New("site name required")
@@ -290,6 +296,22 @@ func cleanTheme(s string) string {
 		return "dark"
 	}
 	return "light"
+}
+func cleanNavLayout(s string) string {
+	if strings.EqualFold(s, "side") {
+		return "side"
+	}
+	return "top"
+}
+func cleanTags(s string) string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if tag := cleanSlug(part); tag != "" {
+			out = append(out, tag)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 func cleanID(s string) string {
 	s = strings.TrimSpace(s)

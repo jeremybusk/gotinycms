@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -34,6 +35,21 @@ type Asset struct {
 	URL       string `json:"url"`
 	Size      int64  `json:"size"`
 	CreatedAt string `json:"created_at"`
+}
+
+type NavItem struct {
+	Label    string `json:"label"`
+	URL      string `json:"url"`
+	External bool   `json:"external"`
+}
+
+type Settings struct {
+	SiteName       string    `json:"site_name"`
+	LogoURL        string    `json:"logo_url"`
+	FaviconURL     string    `json:"favicon_url"`
+	DefaultTheme   string    `json:"default_theme"`
+	FooterMarkdown string    `json:"footer_markdown"`
+	Menu           []NavItem `json:"menu"`
 }
 
 func Open(path string) (*Store, error) {
@@ -82,6 +98,11 @@ CREATE TABLE IF NOT EXISTS assets (
   url TEXT NOT NULL,
   size INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 INSERT INTO pages(slug,title,markdown,published)
 SELECT 'home','Home','# Welcome to TinyCMS\n\nEdit this page from /admin.',1
@@ -167,6 +188,65 @@ func (s *Store) InsertAsset(ctx context.Context, name, path, url string, size in
 	id, _ := res.LastInsertId()
 	return Asset{ID: id, Name: name, Path: path, URL: url, Size: size, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}, nil
 }
+
+func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Settings, error) {
+	settings := DefaultSettings(fallbackSiteName)
+	var raw string
+	err := s.DB.QueryRowContext(ctx, `SELECT value FROM settings WHERE key='site'`).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return settings, nil
+	}
+	if err != nil {
+		return Settings{}, err
+	}
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return Settings{}, err
+	}
+	if settings.SiteName == "" {
+		settings.SiteName = fallbackSiteName
+	}
+	if settings.DefaultTheme == "" {
+		settings.DefaultTheme = "slate"
+	}
+	return settings, nil
+}
+
+func (s *Store) SaveSettings(ctx context.Context, settings Settings) (Settings, error) {
+	if settings.SiteName == "" {
+		return Settings{}, errors.New("site name required")
+	}
+	if settings.DefaultTheme != "dark" {
+		settings.DefaultTheme = "light"
+	}
+	if settings.Menu == nil {
+		settings.Menu = []NavItem{}
+	}
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return Settings{}, err
+	}
+	_, err = s.DB.ExecContext(ctx, `INSERT INTO settings(key,value,updated_at) VALUES('site',?,?)
+ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`, string(raw), time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return Settings{}, err
+	}
+	return settings, nil
+}
+
+func DefaultSettings(siteName string) Settings {
+	if siteName == "" {
+		siteName = "TinyCMS"
+	}
+	return Settings{
+		SiteName:       siteName,
+		DefaultTheme:   "light",
+		FooterMarkdown: "© 2026 " + siteName + ". All rights reserved.",
+		Menu: []NavItem{
+			{Label: "Home", URL: "/", External: false},
+		},
+	}
+}
+
 func boolInt(b bool) int {
 	if b {
 		return 1

@@ -10,6 +10,15 @@ export type Page = {
   created_at:string
   updated_at:string
 }
+export type NavItem = { label:string; url:string; external:boolean }
+export type SiteSettings = {
+  site_name:string
+  logo_url:string
+  favicon_url:string
+  default_theme:'light'|'dark'
+  footer_markdown:string
+  menu:NavItem[]
+}
 
 const base = '/cms.v1.CMSService/'
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
@@ -22,5 +31,7 @@ export const api = {
   getPage: (slug:string) => rpc<{page:Page}>('GetPage', { slug }),
   savePage: (page: Partial<Page>) => rpc<{page:Page}>('SavePage', page),
   deletePage: (slug:string) => rpc<{ok:boolean}>('DeletePage', { slug }),
+  getSettings: () => rpc<{settings:SiteSettings}>('GetSettings'),
+  saveSettings: (settings: SiteSettings) => rpc<{settings:SiteSettings}>('SaveSettings', settings),
   uploadFile: (name:string, data:string) => rpc<{asset:{id:number; name:string; url:string; size:number}}>('UploadFile', { name, data })
 }

@@ -20,6 +20,7 @@ type Service struct {
 	Store          *db.Store
 	UploadDir      string
 	MaxUploadBytes int64
+	SiteName       string
 }
 
 func ok(v map[string]any) (*connect.Response[structpb.Struct], error) {
@@ -99,6 +100,24 @@ func (s *Service) DeletePage(ctx context.Context, req *connect.Request[structpb.
 	}
 	return ok(map[string]any{"ok": true})
 }
+func (s *Service) GetSettings(ctx context.Context, _ *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
+	settings, err := s.Store.GetSettings(ctx, s.SiteName)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return ok(map[string]any{"settings": settingsMap(settings)})
+}
+func (s *Service) SaveSettings(ctx context.Context, req *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
+	settings, err := settingsFromMap(fields(req), s.SiteName)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	settings, err = s.Store.SaveSettings(ctx, settings)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return ok(map[string]any{"settings": settingsMap(settings)})
+}
 func (s *Service) UploadFile(ctx context.Context, req *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
 	m := fields(req)
 	name := safeName(str(m, "name"))
@@ -156,6 +175,54 @@ func pageMap(p db.Page, body bool) map[string]any {
 	return m
 }
 
+func settingsMap(settings db.Settings) map[string]any {
+	menu := make([]any, 0, len(settings.Menu))
+	for _, item := range settings.Menu {
+		menu = append(menu, map[string]any{"label": item.Label, "url": item.URL, "external": item.External})
+	}
+	return map[string]any{
+		"site_name":       settings.SiteName,
+		"logo_url":        settings.LogoURL,
+		"favicon_url":     settings.FaviconURL,
+		"default_theme":   settings.DefaultTheme,
+		"footer_markdown": settings.FooterMarkdown,
+		"menu":            menu,
+	}
+}
+
+func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, error) {
+	settings := db.Settings{
+		SiteName:       firstNonEmpty(str(m, "site_name"), fallbackSiteName),
+		LogoURL:        cleanAssetURL(str(m, "logo_url")),
+		FaviconURL:     cleanAssetURL(str(m, "favicon_url")),
+		DefaultTheme:   cleanTheme(str(m, "default_theme")),
+		FooterMarkdown: str(m, "footer_markdown"),
+		Menu:           navItems(m["menu"]),
+	}
+	if settings.SiteName == "" {
+		return db.Settings{}, errors.New("site name required")
+	}
+	return settings, nil
+}
+
+func navItems(v any) []db.NavItem {
+	items, _ := v.([]any)
+	out := make([]db.NavItem, 0, len(items))
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := str(m, "label")
+		url := cleanURL(str(m, "url"))
+		if label == "" || url == "" {
+			continue
+		}
+		out = append(out, db.NavItem{Label: label, URL: url, External: boolean(m, "external") || strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")})
+	}
+	return out
+}
+
 var slugRe = regexp.MustCompile(`[^a-z0-9-]+`)
 
 func cleanSlug(s string) string {
@@ -192,6 +259,39 @@ func cleanContentType(s string) string {
 		return "page"
 	}
 }
+func cleanTheme(s string) string {
+	if strings.EqualFold(s, "dark") {
+		return "dark"
+	}
+	return "light"
+}
+func cleanAssetURL(s string) string {
+	if strings.HasPrefix(s, "/uploads/") {
+		return s
+	}
+	return ""
+}
+func cleanURL(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "mailto:") || strings.HasPrefix(s, "tel:") {
+		return s
+	}
+	if s == "" {
+		return ""
+	}
+	if !strings.HasPrefix(s, "/") {
+		s = "/" + s
+	}
+	return cleanPath(s)
+}
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
 func safeName(s string) string {
 	s = filepath.Base(s)
 	e := ext(s)
@@ -213,7 +313,7 @@ func ext(s string) string {
 
 func allowedUpload(name string) bool {
 	switch ext(name) {
-	case ".avif", ".gif", ".jpeg", ".jpg", ".png", ".webp", ".pdf", ".txt", ".md", ".csv":
+	case ".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp", ".pdf", ".txt", ".md", ".csv":
 		return true
 	default:
 		return false

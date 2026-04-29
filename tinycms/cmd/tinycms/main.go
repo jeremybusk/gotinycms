@@ -27,7 +27,7 @@ func main() {
 	must(err)
 	defer geof.Close()
 
-	svc := &service.Service{Store: store, UploadDir: cfg.UploadDir, MaxUploadBytes: cfg.MaxUploadBytes}
+	svc := &service.Service{Store: store, UploadDir: cfg.UploadDir, MaxUploadBytes: cfg.MaxUploadBytes, SiteName: cfg.PublicSiteName}
 	_, api := cmsv1connect.NewCMSServiceHandler(svc)
 	admin := http.FileServer(http.Dir("web/dist"))
 	uploads := http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.UploadDir)))

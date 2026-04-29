@@ -10,10 +10,12 @@ A deliberately small Hugo/WordPress-like CMS:
 - Page/post content types plus SEO descriptions for published routes.
 - Ant Design React admin UI.
 - MDXEditor WYSIWYG-style Markdown editor.
+- Optional source Markdown editing mode.
 - File/image uploads inserted into Markdown.
+- Global logo, favicon, top menu, public theme, and footer settings.
 - IP CIDR allow/deny middleware.
 - Optional MaxMind GeoIP country allow/deny middleware.
-- Five lightweight palettes: `forest`, `slate`, `ember`, `plum`, `mono`.
+- Four lightweight admin palettes with `slate` as the default.
 
 ## Layout
 
@@ -55,6 +57,14 @@ docker compose up --build
 
 The Docker build uses the committed `web/package-lock.json` with `npm ci` for repeatable frontend installs.
 
+Use modern Compose (`docker compose`, with a space). The old Python `docker-compose` v1.29.x can fail during container recreation with `KeyError: 'ContainerConfig'` on newer Docker engines. If you hit that, run:
+
+```bash
+docker compose up -d --force-recreate --remove-orphans tinycms
+```
+
+The Makefile also includes `make docker-up`, `make docker-build`, and `make docker-down` wrappers that use modern Compose.
+
 ## Content Model
 
 TinyCMS keeps the editing model intentionally small:
@@ -66,6 +76,17 @@ TinyCMS keeps the editing model intentionally small:
 - `Published` controls whether the route is visible publicly.
 
 The `home` admin slug is reserved for `/` and cannot be deleted.
+
+## Site Settings
+
+The admin `Site` tab manages simple global pieces shared by every public page:
+
+- Logo and favicon upload fields.
+- A top menu builder for internal paths such as `/about` and external URLs.
+- A Markdown footer shown on every page.
+- Public default theme, with a visitor-side light/dark toggle saved in the browser.
+
+The public menu collapses into a small hamburger menu on mobile.
 
 ## Config
 

@@ -54,6 +54,7 @@ type Settings struct {
 	DefaultTheme         string    `json:"default_theme"`
 	PublicPrimaryColor   string    `json:"public_primary_color"`
 	PublicSecondaryColor string    `json:"public_secondary_color"`
+	PublicHeaderStyle    string    `json:"public_header_style"`
 	AdminTheme           string    `json:"admin_theme"`
 	AdminPrimaryColor    string    `json:"admin_primary_color"`
 	AdminSecondaryColor  string    `json:"admin_secondary_color"`
@@ -274,8 +275,14 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if settings.PublicSecondaryColor == "" {
 		settings.PublicSecondaryColor = "#64748b"
 	}
+	if settings.PublicHeaderStyle != "accent-line" && settings.PublicHeaderStyle != "accent-bg" {
+		settings.PublicHeaderStyle = "neutral"
+	}
 	if settings.AdminTheme != "dark" {
 		settings.AdminTheme = "light"
+	}
+	if settings.PublicHeaderStyle != "accent-line" && settings.PublicHeaderStyle != "accent-bg" {
+		settings.PublicHeaderStyle = "neutral"
 	}
 	if settings.AdminPrimaryColor == "" {
 		settings.AdminPrimaryColor = "#386bc0"
@@ -340,6 +347,7 @@ func DefaultSettings(siteName string) Settings {
 		DefaultTheme:         "light",
 		PublicPrimaryColor:   "#386bc0",
 		PublicSecondaryColor: "#64748b",
+		PublicHeaderStyle:    "neutral",
 		AdminTheme:           "light",
 		AdminPrimaryColor:    "#386bc0",
 		AdminSecondaryColor:  "#64748b",

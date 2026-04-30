@@ -48,6 +48,7 @@ function Root() {
   const [publicTheme, setPublicTheme] = useState<'light'|'dark'>('light')
   const [publicPrimary, setPublicPrimary] = useState('#386bc0')
   const [publicSecondary, setPublicSecondary] = useState('#64748b')
+  const [publicHeaderStyle, setPublicHeaderStyle] = useState<'neutral'|'accent-line'|'accent-bg'>('neutral')
   const [form] = Form.useForm()
   const [settingsForm] = Form.useForm<SiteSettings>()
   const md = Form.useWatch('markdown', form) ?? ''
@@ -98,6 +99,7 @@ function Root() {
     setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
     setPublicPrimary(r.settings.public_primary_color || '#386bc0')
     setPublicSecondary(r.settings.public_secondary_color || '#64748b')
+    setPublicHeaderStyle(r.settings.public_header_style || 'neutral')
   }
   async function openPage(slug:string) {
     const r = await api.getPage(slug)
@@ -131,6 +133,7 @@ function Root() {
         default_theme: values.default_theme || publicTheme,
         public_primary_color: values.public_primary_color || publicPrimary,
         public_secondary_color: values.public_secondary_color || publicSecondary,
+        public_header_style: values.public_header_style || publicHeaderStyle,
         admin_theme: adminDark ? 'dark' : 'light',
         admin_primary_color: adminTokens.colorPrimary,
         admin_secondary_color: customSecondary,
@@ -141,6 +144,7 @@ function Root() {
       setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
       setPublicPrimary(r.settings.public_primary_color || '#386bc0')
       setPublicSecondary(r.settings.public_secondary_color || '#64748b')
+      setPublicHeaderStyle(r.settings.public_header_style || 'neutral')
       setCustomSecondary(r.settings.admin_secondary_color || '#64748b')
       message.success('Site settings saved')
     } catch(e:any) {
@@ -271,7 +275,7 @@ function Root() {
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={() => saveSettings()} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', public_secondary_color:'#64748b', admin_theme:'light', admin_primary_color:'#386bc0', admin_secondary_color:'#64748b', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={() => saveSettings()} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', public_secondary_color:'#64748b', public_header_style:'neutral', admin_theme:'light', admin_primary_color:'#386bc0', admin_secondary_color:'#64748b', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
@@ -367,8 +371,16 @@ function Root() {
                   <Input value={publicSecondary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setPublicSecondary(value); settingsForm.setFieldValue('public_secondary_color', value) }} />
                 </Space>
               </div>
+              <div>
+                <Typography.Text>Header style</Typography.Text>
+                <Select className="themeSelect" value={publicHeaderStyle} onChange={value => { setPublicHeaderStyle(value); settingsForm.setFieldValue('public_header_style', value) }} options={[
+                  {label:'Neutral', value:'neutral'},
+                  {label:'Accent line', value:'accent-line'},
+                  {label:'Accent background', value:'accent-bg'}
+                ]} />
+              </div>
               <Button onClick={() => { setPublicPrimary(adminTokens.colorPrimary); settingsForm.setFieldValue('public_primary_color', adminTokens.colorPrimary) }}>Use admin primary</Button>
-              <Button type="primary" loading={savingSettings} onClick={() => saveSettings({ default_theme: publicTheme, public_primary_color: publicPrimary, public_secondary_color: publicSecondary })}>Save public theme</Button>
+              <Button type="primary" loading={savingSettings} onClick={() => saveSettings({ default_theme: publicTheme, public_primary_color: publicPrimary, public_secondary_color: publicSecondary, public_header_style: publicHeaderStyle })}>Save public theme</Button>
             </Space>
           </div>
         </Card> }

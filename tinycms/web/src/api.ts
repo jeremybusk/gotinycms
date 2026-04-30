@@ -19,6 +19,7 @@ export type SiteSettings = {
   default_theme:'light'|'dark'
   public_primary_color:string
   public_secondary_color:string
+  public_header_style:'neutral'|'accent-line'|'accent-bg'
   admin_theme:'light'|'dark'
   admin_primary_color:string
   admin_secondary_color:string

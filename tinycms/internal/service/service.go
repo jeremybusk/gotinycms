@@ -196,6 +196,7 @@ func settingsMap(settings db.Settings) map[string]any {
 		"default_theme":          settings.DefaultTheme,
 		"public_primary_color":   settings.PublicPrimaryColor,
 		"public_secondary_color": settings.PublicSecondaryColor,
+		"public_header_style":    settings.PublicHeaderStyle,
 		"admin_theme":            settings.AdminTheme,
 		"admin_primary_color":    settings.AdminPrimaryColor,
 		"admin_secondary_color":  settings.AdminSecondaryColor,
@@ -221,6 +222,7 @@ func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, er
 		DefaultTheme:         cleanTheme(str(m, "default_theme")),
 		PublicPrimaryColor:   cleanHexColor(str(m, "public_primary_color")),
 		PublicSecondaryColor: cleanHexColorWithDefault(str(m, "public_secondary_color"), "#64748b"),
+		PublicHeaderStyle:    cleanHeaderStyle(str(m, "public_header_style")),
 		AdminTheme:           cleanTheme(str(m, "admin_theme")),
 		AdminPrimaryColor:    cleanHexColor(str(m, "admin_primary_color")),
 		AdminSecondaryColor:  cleanHexColorWithDefault(str(m, "admin_secondary_color"), "#64748b"),
@@ -315,6 +317,14 @@ func cleanPalette(s string) string {
 		return strings.ToLower(strings.TrimSpace(s))
 	default:
 		return "slate"
+	}
+}
+func cleanHeaderStyle(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "accent-line", "accent-bg":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return "neutral"
 	}
 }
 func cleanHexColor(s string) string {

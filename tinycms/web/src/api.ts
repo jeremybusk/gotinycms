@@ -18,8 +18,10 @@ export type SiteSettings = {
   favicon_url:string
   default_theme:'light'|'dark'
   public_primary_color:string
+  public_secondary_color:string
   admin_theme:'light'|'dark'
   admin_primary_color:string
+  admin_secondary_color:string
   admin_palette:'slate'|'forest'|'ember'|'mono'|'custom'
   footer_markdown:string
   menu:NavItem[]

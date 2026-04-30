@@ -48,24 +48,26 @@ type NavItem struct {
 }
 
 type Settings struct {
-	SiteName           string    `json:"site_name"`
-	LogoURL            string    `json:"logo_url"`
-	FaviconURL         string    `json:"favicon_url"`
-	DefaultTheme       string    `json:"default_theme"`
-	PublicPrimaryColor string    `json:"public_primary_color"`
-	AdminTheme         string    `json:"admin_theme"`
-	AdminPrimaryColor  string    `json:"admin_primary_color"`
-	AdminPalette       string    `json:"admin_palette"`
-	FooterMarkdown     string    `json:"footer_markdown"`
-	Menu               []NavItem `json:"menu"`
-	LogoEnabled        bool      `json:"logo_enabled"`
-	FaviconEnabled     bool      `json:"favicon_enabled"`
-	MenuEnabled        bool      `json:"menu_enabled"`
-	FooterEnabled      bool      `json:"footer_enabled"`
-	ThemeToggleEnabled bool      `json:"theme_toggle_enabled"`
-	IconsEnabled       bool      `json:"icons_enabled"`
-	SearchEnabled      bool      `json:"search_enabled"`
-	NavLayout          string    `json:"nav_layout"`
+	SiteName             string    `json:"site_name"`
+	LogoURL              string    `json:"logo_url"`
+	FaviconURL           string    `json:"favicon_url"`
+	DefaultTheme         string    `json:"default_theme"`
+	PublicPrimaryColor   string    `json:"public_primary_color"`
+	PublicSecondaryColor string    `json:"public_secondary_color"`
+	AdminTheme           string    `json:"admin_theme"`
+	AdminPrimaryColor    string    `json:"admin_primary_color"`
+	AdminSecondaryColor  string    `json:"admin_secondary_color"`
+	AdminPalette         string    `json:"admin_palette"`
+	FooterMarkdown       string    `json:"footer_markdown"`
+	Menu                 []NavItem `json:"menu"`
+	LogoEnabled          bool      `json:"logo_enabled"`
+	FaviconEnabled       bool      `json:"favicon_enabled"`
+	MenuEnabled          bool      `json:"menu_enabled"`
+	FooterEnabled        bool      `json:"footer_enabled"`
+	ThemeToggleEnabled   bool      `json:"theme_toggle_enabled"`
+	IconsEnabled         bool      `json:"icons_enabled"`
+	SearchEnabled        bool      `json:"search_enabled"`
+	NavLayout            string    `json:"nav_layout"`
 }
 
 func Open(path string) (*Store, error) {
@@ -269,11 +271,17 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if settings.PublicPrimaryColor == "" {
 		settings.PublicPrimaryColor = "#386bc0"
 	}
+	if settings.PublicSecondaryColor == "" {
+		settings.PublicSecondaryColor = "#64748b"
+	}
 	if settings.AdminTheme != "dark" {
 		settings.AdminTheme = "light"
 	}
 	if settings.AdminPrimaryColor == "" {
 		settings.AdminPrimaryColor = "#386bc0"
+	}
+	if settings.AdminSecondaryColor == "" {
+		settings.AdminSecondaryColor = "#64748b"
 	}
 	if settings.AdminPalette == "" {
 		settings.AdminPalette = "slate"
@@ -297,6 +305,9 @@ func (s *Store) SaveSettings(ctx context.Context, settings Settings) (Settings, 
 	}
 	if settings.AdminPrimaryColor == "" {
 		settings.AdminPrimaryColor = "#386bc0"
+	}
+	if settings.AdminSecondaryColor == "" {
+		settings.AdminSecondaryColor = "#64748b"
 	}
 	if settings.AdminPalette == "" {
 		settings.AdminPalette = "slate"
@@ -325,21 +336,23 @@ func DefaultSettings(siteName string) Settings {
 		siteName = "TinyCMS"
 	}
 	return Settings{
-		SiteName:           siteName,
-		DefaultTheme:       "light",
-		PublicPrimaryColor: "#386bc0",
-		AdminTheme:         "light",
-		AdminPrimaryColor:  "#386bc0",
-		AdminPalette:       "slate",
-		FooterMarkdown:     "© 2026 " + siteName + ". All rights reserved.",
-		LogoEnabled:        true,
-		FaviconEnabled:     true,
-		MenuEnabled:        true,
-		FooterEnabled:      true,
-		ThemeToggleEnabled: true,
-		IconsEnabled:       true,
-		SearchEnabled:      true,
-		NavLayout:          "top",
+		SiteName:             siteName,
+		DefaultTheme:         "light",
+		PublicPrimaryColor:   "#386bc0",
+		PublicSecondaryColor: "#64748b",
+		AdminTheme:           "light",
+		AdminPrimaryColor:    "#386bc0",
+		AdminSecondaryColor:  "#64748b",
+		AdminPalette:         "slate",
+		FooterMarkdown:       "© 2026 " + siteName + ". All rights reserved.",
+		LogoEnabled:          true,
+		FaviconEnabled:       true,
+		MenuEnabled:          true,
+		FooterEnabled:        true,
+		ThemeToggleEnabled:   true,
+		IconsEnabled:         true,
+		SearchEnabled:        true,
+		NavLayout:            "top",
 		Menu: []NavItem{
 			{ID: "home", Label: "Home", URL: "/", External: false, Enabled: true},
 		},

@@ -43,13 +43,15 @@ function Root() {
   const [editorRev, setEditorRev] = useState(0)
   const [palette, setPalette] = useState<Palette>('slate')
   const [customPrimary, setCustomPrimary] = useState('#386bc0')
+  const [customSecondary, setCustomSecondary] = useState('#64748b')
   const [adminDark, setAdminDark] = useState(false)
+  const [publicTheme, setPublicTheme] = useState<'light'|'dark'>('light')
+  const [publicPrimary, setPublicPrimary] = useState('#386bc0')
+  const [publicSecondary, setPublicSecondary] = useState('#64748b')
   const [form] = Form.useForm()
   const [settingsForm] = Form.useForm<SiteSettings>()
   const md = Form.useWatch('markdown', form) ?? ''
   const menuItems = Form.useWatch('menu', settingsForm) || []
-  const publicPrimaryColor = Form.useWatch('public_primary_color', settingsForm) || '#386bc0'
-  const publicDefaultTheme = Form.useWatch('default_theme', settingsForm) || 'light'
   const selectedPalette = palette === 'custom'
     ? { ...palettes.slate, colorPrimary: customPrimary }
     : palettes[palette]
@@ -69,6 +71,8 @@ function Root() {
   const adminVars = {
     '--admin-primary': adminTokens.colorPrimary,
     '--admin-primary-rgb': hexToRgb(adminTokens.colorPrimary),
+    '--admin-secondary': customSecondary,
+    '--admin-secondary-rgb': hexToRgb(customSecondary),
     '--admin-bg': adminTokens.colorBgLayout,
     '--admin-bg-soft': adminDark ? '#111827' : '#eaf1fb',
     '--admin-surface': adminTokens.colorBgContainer,
@@ -89,7 +93,11 @@ function Root() {
     settingsForm.setFieldsValue(r.settings)
     setAdminDark(r.settings.admin_theme === 'dark')
     setCustomPrimary(r.settings.admin_primary_color || '#386bc0')
+    setCustomSecondary(r.settings.admin_secondary_color || '#64748b')
     if (r.settings.admin_palette) setPalette(r.settings.admin_palette)
+    setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
+    setPublicPrimary(r.settings.public_primary_color || '#386bc0')
+    setPublicSecondary(r.settings.public_secondary_color || '#64748b')
   }
   async function openPage(slug:string) {
     const r = await api.getPage(slug)
@@ -113,21 +121,27 @@ function Root() {
       setSaving(false)
     }
   }
-  async function saveSettings() {
+  async function saveSettings(overrides: Partial<SiteSettings> = {}) {
     setSavingSettings(true)
     try {
-      const values = settingsForm.getFieldsValue(true)
+      const values = { ...settingsForm.getFieldsValue(true), ...overrides }
       const menu = ((values.menu || []) as NavItem[]).map(item => ({ ...item, id: item.id || newID(), parent_id: item.parent_id || '', url: pathify(item.url || ''), enabled: item.enabled !== false })).filter(item => item.label && item.url)
       const r = await api.saveSettings({
         ...values,
-        default_theme: values.default_theme || 'light',
-        public_primary_color: values.public_primary_color || '#386bc0',
+        default_theme: values.default_theme || publicTheme,
+        public_primary_color: values.public_primary_color || publicPrimary,
+        public_secondary_color: values.public_secondary_color || publicSecondary,
         admin_theme: adminDark ? 'dark' : 'light',
         admin_primary_color: adminTokens.colorPrimary,
+        admin_secondary_color: customSecondary,
         admin_palette: palette,
         menu
       } as SiteSettings)
       settingsForm.setFieldsValue(r.settings)
+      setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
+      setPublicPrimary(r.settings.public_primary_color || '#386bc0')
+      setPublicSecondary(r.settings.public_secondary_color || '#64748b')
+      setCustomSecondary(r.settings.admin_secondary_color || '#64748b')
       message.success('Site settings saved')
     } catch(e:any) {
       message.error(e.message)
@@ -198,8 +212,8 @@ function Root() {
       <div className="brand">TinyCMS</div>
       <Space wrap className="palettes">
         {Object.keys(palettes).map(p => <Button key={p} size="small" type={p===palette?'primary':'default'} onClick={() => setPalette(p as Palette)}>{p}</Button>)}
-        <Button size="small" type={palette==='custom'?'primary':'default'} onClick={() => setPalette('custom')}>custom</Button>
-        <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={setAdminDark} />
+        <Button size="small" type={palette==='custom'?'primary':'default'} onClick={() => { setPalette('custom'); settingsForm.setFieldValue('admin_palette', 'custom') }}>custom</Button>
+        <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={checked => { setAdminDark(checked); settingsForm.setFieldValue('admin_theme', checked ? 'dark' : 'light') }} />
       </Space>
       <Button block type="primary" onClick={newPage}>New page</Button>
       <List className="pages" dataSource={pages} renderItem={p => <List.Item className={active?.slug===p.slug?'selected':''} onClick={() => openPage(p.slug)}>
@@ -236,7 +250,7 @@ function Root() {
             <Form.Item name="markdown" label="Body" className="mdField">
               {sourceMode
                 ? <Input.TextArea rows={22} className="sourceEditor" value={md} onChange={e => form.setFieldValue('markdown', e.target.value)} />
-                : <MDXEditor key={`${active?.slug || 'new'}-${active?.updated_at || ''}-${editorRev}`} markdown={md} onChange={v => form.setFieldValue('markdown', v)} plugins={[
+                : <MDXEditor key={`${active?.slug || 'new'}-${active?.updated_at || ''}-${editorRev}`} className={adminDark ? 'tinyMdx dark-theme' : 'tinyMdx'} contentEditableClassName="tinyMdxContent" markdown={md} onChange={v => form.setFieldValue('markdown', v)} plugins={[
                   headingsPlugin(),
                   listsPlugin(),
                   quotePlugin(),
@@ -257,7 +271,7 @@ function Root() {
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', admin_theme:'light', admin_primary_color:'#386bc0', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={() => saveSettings()} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', public_secondary_color:'#64748b', admin_theme:'light', admin_primary_color:'#386bc0', admin_secondary_color:'#64748b', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
@@ -281,7 +295,7 @@ function Root() {
               <Form.Item name="favicon_url" label="Favicon URL"><Input placeholder="/uploads/..." /></Form.Item>
               <Upload {...settingsUploadProps('favicon_url')}><Button>Upload favicon</Button></Upload>
             </Space>
-            <Form.Item name="default_theme" label="Public default theme"><Select options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} /></Form.Item>
+            <Form.Item name="default_theme" label="Public default theme"><Select onChange={value => setPublicTheme(value)} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} /></Form.Item>
             <Form.Item name="nav_layout" label="Public navigation layout"><Select options={[{label:'Top menu', value:'top'}, {label:'Side drawer', value:'side'}]} /></Form.Item>
             <Typography.Title level={4}>Top menu</Typography.Title>
             <Form.List name="menu">{(fields, { add, remove }) => <>
@@ -307,8 +321,8 @@ function Root() {
             </div>
           </Space>
           <Space wrap className="themePicker">
-            {Object.keys(palettes).map(p => <Button key={p} type={p===palette?'primary':'default'} onClick={() => setPalette(p as Palette)}>{p}</Button>)}
-            <Button type={palette==='custom'?'primary':'default'} onClick={() => setPalette('custom')}>Custom</Button>
+            {Object.keys(palettes).map(p => <Button key={p} type={p===palette?'primary':'default'} onClick={() => { setPalette(p as Palette); settingsForm.setFieldValue('admin_palette', p) }}>{p}</Button>)}
+            <Button type={palette==='custom'?'primary':'default'} onClick={() => { setPalette('custom'); settingsForm.setFieldValue('admin_palette', 'custom') }}>Custom</Button>
             <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={checked => { setAdminDark(checked); settingsForm.setFieldValue('admin_theme', checked ? 'dark' : 'light') }} />
           </Space>
           <Form layout="vertical" className="customThemeForm">
@@ -322,7 +336,13 @@ function Root() {
                 <Input value={customPrimary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setCustomPrimary(value); setPalette('custom'); settingsForm.setFieldValue('admin_primary_color', value); settingsForm.setFieldValue('admin_palette', 'custom') }} />
               </Space>
             </Form.Item>
-            <Button type="primary" loading={savingSettings} onClick={saveSettings}>Save admin theme</Button>
+            <Form.Item label="Custom secondary color">
+              <Space>
+                <Input type="color" value={customSecondary} onChange={e => { setCustomSecondary(e.target.value); settingsForm.setFieldValue('admin_secondary_color', e.target.value) }} className="colorInput" />
+                <Input value={customSecondary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setCustomSecondary(value); settingsForm.setFieldValue('admin_secondary_color', value) }} />
+              </Space>
+            </Form.Item>
+            <Button type="primary" loading={savingSettings} onClick={() => saveSettings()}>Save admin theme</Button>
             <Typography.Paragraph type="secondary">Suggested primary: <code>#386bc0</code>. The admin background, buttons, inputs, tabs, editor, sliders, and selected states derive from the active theme.</Typography.Paragraph>
           </Form>
           <div className="publicThemePanel">
@@ -331,16 +351,24 @@ function Root() {
             <Space wrap align="end">
               <div>
                 <Typography.Text>Default mode</Typography.Text>
-                <Select className="themeSelect" value={publicDefaultTheme} onChange={value => settingsForm.setFieldValue('default_theme', value)} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} />
+                <Select className="themeSelect" value={publicTheme} onChange={value => { setPublicTheme(value); settingsForm.setFieldValue('default_theme', value) }} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} />
               </div>
               <div>
                 <Typography.Text>Primary color</Typography.Text>
                 <Space>
-                  <Input type="color" value={publicPrimaryColor} onChange={e => settingsForm.setFieldValue('public_primary_color', e.target.value)} className="colorInput" />
-                  <Input value={publicPrimaryColor} onChange={e => settingsForm.setFieldValue('public_primary_color', e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`)} />
+                  <Input type="color" value={publicPrimary} onChange={e => { setPublicPrimary(e.target.value); settingsForm.setFieldValue('public_primary_color', e.target.value) }} className="colorInput" />
+                  <Input value={publicPrimary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setPublicPrimary(value); settingsForm.setFieldValue('public_primary_color', value) }} />
                 </Space>
               </div>
-              <Button type="primary" loading={savingSettings} onClick={saveSettings}>Save public theme</Button>
+              <div>
+                <Typography.Text>Secondary color</Typography.Text>
+                <Space>
+                  <Input type="color" value={publicSecondary} onChange={e => { setPublicSecondary(e.target.value); settingsForm.setFieldValue('public_secondary_color', e.target.value) }} className="colorInput" />
+                  <Input value={publicSecondary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setPublicSecondary(value); settingsForm.setFieldValue('public_secondary_color', value) }} />
+                </Space>
+              </div>
+              <Button onClick={() => { setPublicPrimary(adminTokens.colorPrimary); settingsForm.setFieldValue('public_primary_color', adminTokens.colorPrimary) }}>Use admin primary</Button>
+              <Button type="primary" loading={savingSettings} onClick={() => saveSettings({ default_theme: publicTheme, public_primary_color: publicPrimary, public_secondary_color: publicSecondary })}>Save public theme</Button>
             </Space>
           </div>
         </Card> }

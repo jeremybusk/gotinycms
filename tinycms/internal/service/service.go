@@ -190,47 +190,51 @@ func settingsMap(settings db.Settings) map[string]any {
 		})
 	}
 	return map[string]any{
-		"site_name":            settings.SiteName,
-		"logo_url":             settings.LogoURL,
-		"favicon_url":          settings.FaviconURL,
-		"default_theme":        settings.DefaultTheme,
-		"public_primary_color": settings.PublicPrimaryColor,
-		"admin_theme":          settings.AdminTheme,
-		"admin_primary_color":  settings.AdminPrimaryColor,
-		"admin_palette":        settings.AdminPalette,
-		"footer_markdown":      settings.FooterMarkdown,
-		"menu":                 menu,
-		"logo_enabled":         settings.LogoEnabled,
-		"favicon_enabled":      settings.FaviconEnabled,
-		"menu_enabled":         settings.MenuEnabled,
-		"footer_enabled":       settings.FooterEnabled,
-		"theme_toggle_enabled": settings.ThemeToggleEnabled,
-		"icons_enabled":        settings.IconsEnabled,
-		"search_enabled":       settings.SearchEnabled,
-		"nav_layout":           settings.NavLayout,
+		"site_name":              settings.SiteName,
+		"logo_url":               settings.LogoURL,
+		"favicon_url":            settings.FaviconURL,
+		"default_theme":          settings.DefaultTheme,
+		"public_primary_color":   settings.PublicPrimaryColor,
+		"public_secondary_color": settings.PublicSecondaryColor,
+		"admin_theme":            settings.AdminTheme,
+		"admin_primary_color":    settings.AdminPrimaryColor,
+		"admin_secondary_color":  settings.AdminSecondaryColor,
+		"admin_palette":          settings.AdminPalette,
+		"footer_markdown":        settings.FooterMarkdown,
+		"menu":                   menu,
+		"logo_enabled":           settings.LogoEnabled,
+		"favicon_enabled":        settings.FaviconEnabled,
+		"menu_enabled":           settings.MenuEnabled,
+		"footer_enabled":         settings.FooterEnabled,
+		"theme_toggle_enabled":   settings.ThemeToggleEnabled,
+		"icons_enabled":          settings.IconsEnabled,
+		"search_enabled":         settings.SearchEnabled,
+		"nav_layout":             settings.NavLayout,
 	}
 }
 
 func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, error) {
 	settings := db.Settings{
-		SiteName:           firstNonEmpty(str(m, "site_name"), fallbackSiteName),
-		LogoURL:            cleanAssetURL(str(m, "logo_url")),
-		FaviconURL:         cleanAssetURL(str(m, "favicon_url")),
-		DefaultTheme:       cleanTheme(str(m, "default_theme")),
-		PublicPrimaryColor: cleanHexColor(str(m, "public_primary_color")),
-		AdminTheme:         cleanTheme(str(m, "admin_theme")),
-		AdminPrimaryColor:  cleanHexColor(str(m, "admin_primary_color")),
-		AdminPalette:       cleanPalette(str(m, "admin_palette")),
-		FooterMarkdown:     str(m, "footer_markdown"),
-		Menu:               navItems(m["menu"]),
-		LogoEnabled:        boolean(m, "logo_enabled"),
-		FaviconEnabled:     boolean(m, "favicon_enabled"),
-		MenuEnabled:        boolean(m, "menu_enabled"),
-		FooterEnabled:      boolean(m, "footer_enabled"),
-		ThemeToggleEnabled: boolean(m, "theme_toggle_enabled"),
-		IconsEnabled:       boolean(m, "icons_enabled"),
-		SearchEnabled:      boolean(m, "search_enabled"),
-		NavLayout:          cleanNavLayout(str(m, "nav_layout")),
+		SiteName:             firstNonEmpty(str(m, "site_name"), fallbackSiteName),
+		LogoURL:              cleanAssetURL(str(m, "logo_url")),
+		FaviconURL:           cleanAssetURL(str(m, "favicon_url")),
+		DefaultTheme:         cleanTheme(str(m, "default_theme")),
+		PublicPrimaryColor:   cleanHexColor(str(m, "public_primary_color")),
+		PublicSecondaryColor: cleanHexColorWithDefault(str(m, "public_secondary_color"), "#64748b"),
+		AdminTheme:           cleanTheme(str(m, "admin_theme")),
+		AdminPrimaryColor:    cleanHexColor(str(m, "admin_primary_color")),
+		AdminSecondaryColor:  cleanHexColorWithDefault(str(m, "admin_secondary_color"), "#64748b"),
+		AdminPalette:         cleanPalette(str(m, "admin_palette")),
+		FooterMarkdown:       str(m, "footer_markdown"),
+		Menu:                 navItems(m["menu"]),
+		LogoEnabled:          boolean(m, "logo_enabled"),
+		FaviconEnabled:       boolean(m, "favicon_enabled"),
+		MenuEnabled:          boolean(m, "menu_enabled"),
+		FooterEnabled:        boolean(m, "footer_enabled"),
+		ThemeToggleEnabled:   boolean(m, "theme_toggle_enabled"),
+		IconsEnabled:         boolean(m, "icons_enabled"),
+		SearchEnabled:        boolean(m, "search_enabled"),
+		NavLayout:            cleanNavLayout(str(m, "nav_layout")),
 	}
 	if settings.SiteName == "" {
 		return db.Settings{}, errors.New("site name required")
@@ -314,6 +318,9 @@ func cleanPalette(s string) string {
 	}
 }
 func cleanHexColor(s string) string {
+	return cleanHexColorWithDefault(s, "#386bc0")
+}
+func cleanHexColorWithDefault(s, fallback string) string {
 	s = strings.TrimSpace(s)
 	if !strings.HasPrefix(s, "#") {
 		s = "#" + s
@@ -321,7 +328,7 @@ func cleanHexColor(s string) string {
 	if regexp.MustCompile(`^#[0-9a-fA-F]{6}$`).MatchString(s) {
 		return strings.ToLower(s)
 	}
-	return "#386bc0"
+	return fallback
 }
 func cleanNavLayout(s string) string {
 	if strings.EqualFold(s, "side") {

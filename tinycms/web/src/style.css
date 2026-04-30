@@ -143,6 +143,19 @@ body,
 }
 
 .mdField .mdxeditor {
+  --basePageBg: var(--admin-surface);
+  --baseBase: var(--admin-surface-2);
+  --baseBg: var(--admin-surface-2);
+  --baseBgSubtle: var(--admin-bg-soft);
+  --baseBgActive: rgba(var(--admin-primary-rgb), .16);
+  --baseLine: var(--admin-border);
+  --baseBorder: var(--admin-border);
+  --baseBorderHover: var(--admin-secondary);
+  --baseSolid: var(--admin-primary);
+  --baseSolidHover: var(--admin-primary);
+  --baseText: var(--admin-muted);
+  --baseTextContrast: var(--admin-text);
+  --accentText: var(--admin-primary);
   min-height: 540px;
   color: var(--admin-text);
   background: var(--admin-surface);
@@ -176,10 +189,39 @@ body,
 
 .mdxeditor-root-contenteditable {
   padding: 18px;
-  color: var(--admin-text);
+  color: var(--admin-text) !important;
   background: var(--admin-surface);
   font-size: 16px;
   line-height: 1.65;
+}
+
+.tinyMdx,
+.tinyMdx .mdxeditor-rich-text-editor,
+.tinyMdx .mdxeditor-root-contenteditable,
+.tinyMdx .tinyMdxContent,
+.tinyMdx .tinyMdxContent *,
+.tinyMdx [contenteditable="true"],
+.tinyMdx [contenteditable="true"] * {
+  color: var(--admin-text) !important;
+}
+
+.tinyMdx .mdxeditor-toolbar,
+.tinyMdx .mdxeditor-select-content,
+.tinyMdx .mdxeditor-popup-container {
+  color: var(--admin-text) !important;
+  background: var(--admin-surface-2) !important;
+}
+
+.tinyMdx button,
+.tinyMdx [role="button"],
+.tinyMdx [role="option"],
+.tinyMdx svg {
+  color: var(--admin-text) !important;
+}
+
+.tinyMdx [data-disabled],
+.tinyMdx [aria-disabled="true"] {
+  color: var(--admin-muted) !important;
 }
 
 .mdxeditor-root-contenteditable img {

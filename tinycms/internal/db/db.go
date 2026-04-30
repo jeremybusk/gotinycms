@@ -38,6 +38,25 @@ type Asset struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type SecuritySettings struct {
+	AdminDefault         string `json:"admin_default"`
+	PublicDefault        string `json:"public_default"`
+	AdminAllowCountries  string `json:"admin_allow_countries"`
+	AdminDenyCountries   string `json:"admin_deny_countries"`
+	PublicAllowCountries string `json:"public_allow_countries"`
+	PublicDenyCountries  string `json:"public_deny_countries"`
+}
+
+type ACLRule struct {
+	ID        int64  `json:"id"`
+	Scope     string `json:"scope"`
+	Action    string `json:"action"`
+	CIDR      string `json:"cidr"`
+	Note      string `json:"note"`
+	Enabled   bool   `json:"enabled"`
+	CreatedAt string `json:"created_at"`
+}
+
 type NavItem struct {
 	ID       string `json:"id"`
 	ParentID string `json:"parent_id"`
@@ -123,6 +142,26 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE IF NOT EXISTS acl_settings (
+  id INTEGER PRIMARY KEY CHECK (id=1),
+  admin_default TEXT NOT NULL DEFAULT 'allow',
+  public_default TEXT NOT NULL DEFAULT 'allow',
+  admin_allow_countries TEXT NOT NULL DEFAULT '',
+  admin_deny_countries TEXT NOT NULL DEFAULT '',
+  public_allow_countries TEXT NOT NULL DEFAULT '',
+  public_deny_countries TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+INSERT OR IGNORE INTO acl_settings(id) VALUES(1);
+CREATE TABLE IF NOT EXISTS acl_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope TEXT NOT NULL,
+  action TEXT NOT NULL,
+  cidr TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 INSERT INTO pages(slug,title,markdown,published)
 SELECT 'home','Home','# Welcome to TinyCMS\n\nEdit this page from /admin.',1
@@ -254,6 +293,61 @@ func (s *Store) ListAssets(ctx context.Context, limit int) ([]Asset, error) {
 		assets = append(assets, a)
 	}
 	return assets, rows.Err()
+}
+
+func (s *Store) GetACL(ctx context.Context) (SecuritySettings, []ACLRule, error) {
+	settings := SecuritySettings{AdminDefault: "allow", PublicDefault: "allow"}
+	err := s.DB.QueryRowContext(ctx, `SELECT admin_default,public_default,admin_allow_countries,admin_deny_countries,public_allow_countries,public_deny_countries FROM acl_settings WHERE id=1`).Scan(&settings.AdminDefault, &settings.PublicDefault, &settings.AdminAllowCountries, &settings.AdminDenyCountries, &settings.PublicAllowCountries, &settings.PublicDenyCountries)
+	if err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT id,scope,action,cidr,note,enabled,created_at FROM acl_rules ORDER BY id`)
+	if err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	defer rows.Close()
+	var rules []ACLRule
+	for rows.Next() {
+		var rule ACLRule
+		var enabled int
+		if err := rows.Scan(&rule.ID, &rule.Scope, &rule.Action, &rule.CIDR, &rule.Note, &enabled, &rule.CreatedAt); err != nil {
+			return SecuritySettings{}, nil, err
+		}
+		rule.Enabled = enabled == 1
+		rules = append(rules, rule)
+	}
+	return normalizeSecurity(settings), rules, rows.Err()
+}
+
+func (s *Store) SaveACL(ctx context.Context, settings SecuritySettings, rules []ACLRule) (SecuritySettings, []ACLRule, error) {
+	settings = normalizeSecurity(settings)
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `UPDATE acl_settings SET admin_default=?, public_default=?, admin_allow_countries=?, admin_deny_countries=?, public_allow_countries=?, public_deny_countries=?, updated_at=? WHERE id=1`, settings.AdminDefault, settings.PublicDefault, settings.AdminAllowCountries, settings.AdminDenyCountries, settings.PublicAllowCountries, settings.PublicDenyCountries, time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM acl_rules`); err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	for _, rule := range rules {
+		rule.Scope = normalizeScope(rule.Scope)
+		rule.Action = normalizeAction(rule.Action)
+		if rule.CIDR = strings.TrimSpace(rule.CIDR); rule.CIDR == "" {
+			continue
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO acl_rules(scope,action,cidr,note,enabled) VALUES(?,?,?,?,?)`, rule.Scope, rule.Action, rule.CIDR, strings.TrimSpace(rule.Note), boolInt(rule.Enabled))
+		if err != nil {
+			return SecuritySettings{}, nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return SecuritySettings{}, nil, err
+	}
+	return s.GetACL(ctx)
 }
 
 func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Settings, error) {
@@ -393,6 +487,49 @@ func normalizeSettings(settings *Settings) {
 			settings.Menu[i].ID = fmt.Sprintf("item-%d", i+1)
 		}
 	}
+}
+
+func normalizeSecurity(settings SecuritySettings) SecuritySettings {
+	if settings.AdminDefault != "deny" {
+		settings.AdminDefault = "allow"
+	}
+	if settings.PublicDefault != "deny" {
+		settings.PublicDefault = "allow"
+	}
+	settings.AdminAllowCountries = normalizeCountries(settings.AdminAllowCountries)
+	settings.AdminDenyCountries = normalizeCountries(settings.AdminDenyCountries)
+	settings.PublicAllowCountries = normalizeCountries(settings.PublicAllowCountries)
+	settings.PublicDenyCountries = normalizeCountries(settings.PublicDenyCountries)
+	return settings
+}
+
+func normalizeScope(scope string) string {
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "admin", "public":
+		return strings.ToLower(strings.TrimSpace(scope))
+	default:
+		return "all"
+	}
+}
+
+func normalizeAction(action string) string {
+	if strings.EqualFold(strings.TrimSpace(action), "allow") {
+		return "allow"
+	}
+	return "deny"
+}
+
+func normalizeCountries(raw string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		code := strings.ToUpper(strings.TrimSpace(part))
+		if len(code) == 2 && !seen[code] {
+			seen[code] = true
+			out = append(out, code)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 func boolInt(b bool) int {

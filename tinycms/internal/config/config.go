@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"os"
 	"strconv"
 	"strings"
@@ -23,11 +24,13 @@ type Config struct {
 	DeniedCountries   []string
 	MaxUploadBytes    int64
 	PublicSiteName    string
+	TLSCertFile       string
+	TLSKeyFile        string
 }
 
 func Load() Config {
 	data := env("CMS_DATA_DIR", "./data")
-	return Config{
+	cfg := Config{
 		Addr:              env("CMS_ADDR", ":8080"),
 		DataDir:           data,
 		DBPath:            env("CMS_DB", data+"/cms.db"),
@@ -43,7 +46,32 @@ func Load() Config {
 		DeniedCountries:   upperCSV("CMS_DENY_COUNTRIES"),
 		MaxUploadBytes:    int64Env("CMS_MAX_UPLOAD_BYTES", 25<<20),
 		PublicSiteName:    env("CMS_SITE_NAME", "TinyCMS"),
+		TLSCertFile:       os.Getenv("CMS_TLS_CERT"),
+		TLSKeyFile:        os.Getenv("CMS_TLS_KEY"),
 	}
+	allowCIDRs := strings.Join(cfg.AllowedCIDRs, ",")
+	denyCIDRs := strings.Join(cfg.DeniedCIDRs, ",")
+	allowCountries := strings.Join(cfg.AllowedCountries, ",")
+	denyCountries := strings.Join(cfg.DeniedCountries, ",")
+	flag.StringVar(&cfg.Addr, "addr", cfg.Addr, "listen address")
+	flag.StringVar(&cfg.DBPath, "db", cfg.DBPath, "sqlite database path")
+	flag.StringVar(&cfg.UploadDir, "uploads", cfg.UploadDir, "upload directory")
+	flag.StringVar(&cfg.AdminUser, "admin-user", cfg.AdminUser, "admin username")
+	flag.StringVar(&cfg.AdminPass, "admin-pass", cfg.AdminPass, "admin password")
+	flag.StringVar(&allowCIDRs, "allow-cidrs", allowCIDRs, "comma-separated IPv4/IPv6 CIDR allow list")
+	flag.StringVar(&denyCIDRs, "deny-cidrs", denyCIDRs, "comma-separated IPv4/IPv6 CIDR deny list")
+	flag.StringVar(&cfg.MaxMindDBPath, "maxmind-db", cfg.MaxMindDBPath, "MaxMind GeoIP2 country database path")
+	flag.StringVar(&allowCountries, "allow-countries", allowCountries, "comma-separated ISO country allow list")
+	flag.StringVar(&denyCountries, "deny-countries", denyCountries, "comma-separated ISO country deny list")
+	flag.BoolVar(&cfg.TrustProxyHeaders, "trust-proxy-headers", cfg.TrustProxyHeaders, "trust reverse proxy client IP headers")
+	flag.StringVar(&cfg.TLSCertFile, "tls-cert", cfg.TLSCertFile, "TLS certificate file")
+	flag.StringVar(&cfg.TLSKeyFile, "tls-key", cfg.TLSKeyFile, "TLS private key file")
+	flag.Parse()
+	cfg.AllowedCIDRs = split(allowCIDRs, false)
+	cfg.DeniedCIDRs = split(denyCIDRs, false)
+	cfg.AllowedCountries = split(allowCountries, true)
+	cfg.DeniedCountries = split(denyCountries, true)
+	return cfg
 }
 
 func env(k, d string) string {

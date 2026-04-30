@@ -127,6 +127,56 @@ body,
   border-top: 1px solid var(--admin-border);
 }
 
+.securityNote {
+  padding: 14px 16px;
+  background: var(--admin-surface-2);
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+}
+
+.securityGrid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px;
+  width: 100%;
+  margin: 18px 0 24px;
+}
+
+.securityGrid label,
+.aclRow label {
+  display: grid;
+  gap: 8px;
+  color: var(--admin-text);
+}
+
+.aclHeader {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin: 8px 0 12px;
+}
+
+.aclRow {
+  display: grid !important;
+  grid-template-columns: 130px 120px minmax(210px, 1fr) 92px minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: var(--admin-surface-2);
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+}
+
+.aclSwitch {
+  justify-items: start;
+}
+
+.securityActions {
+  margin-top: 10px;
+}
+
 .mediaActions {
   margin-bottom: 14px;
 }
@@ -497,8 +547,10 @@ body,
 
 @media (max-width: 1100px) {
   .assetGrid,
+  .aclRow,
   .menuRow,
-  .routeGrid {
+  .routeGrid,
+  .securityGrid {
     grid-template-columns: 1fr !important;
   }
 }

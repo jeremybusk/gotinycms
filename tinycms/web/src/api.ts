@@ -13,6 +13,16 @@ export type Page = {
 }
 export type NavItem = { id:string; parent_id:string; label:string; url:string; external:boolean; enabled:boolean }
 export type Asset = { id:number; name:string; url:string; size:number; created_at:string }
+export type ACLRule = { id?:number; scope:'all'|'admin'|'public'; action:'allow'|'deny'; cidr:string; note:string; enabled:boolean }
+export type ACLSettings = {
+  admin_default:'allow'|'deny'
+  public_default:'allow'|'deny'
+  admin_allow_countries:string
+  admin_deny_countries:string
+  public_allow_countries:string
+  public_deny_countries:string
+  rules:ACLRule[]
+}
 export type SiteSettings = {
   site_name:string
   logo_url:string
@@ -51,5 +61,7 @@ export const api = {
   getSettings: () => rpc<{settings:SiteSettings}>('GetSettings'),
   saveSettings: (settings: SiteSettings) => rpc<{settings:SiteSettings}>('SaveSettings', settings),
   listAssets: () => rpc<{assets:Asset[]}>('ListAssets'),
-  uploadFile: (name:string, data:string) => rpc<{asset:Asset}>('UploadFile', { name, data })
+  uploadFile: (name:string, data:string) => rpc<{asset:Asset}>('UploadFile', { name, data }),
+  getACL: () => rpc<{acl:ACLSettings}>('GetACL'),
+  saveACL: (acl: ACLSettings) => rpc<{acl:ACLSettings}>('SaveACL', acl)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -130,6 +131,24 @@ func (s *Service) ListAssets(ctx context.Context, _ *connect.Request[structpb.St
 	}
 	return ok(map[string]any{"assets": items})
 }
+func (s *Service) GetACL(ctx context.Context, _ *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
+	settings, rules, err := s.Store.GetACL(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return ok(map[string]any{"acl": aclMap(settings, rules)})
+}
+func (s *Service) SaveACL(ctx context.Context, req *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
+	settings, rules, err := aclFromMap(fields(req))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	settings, rules, err = s.Store.SaveACL(ctx, settings, rules)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return ok(map[string]any{"acl": aclMap(settings, rules)})
+}
 func (s *Service) UploadFile(ctx context.Context, req *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
 	m := fields(req)
 	name := safeName(str(m, "name"))
@@ -196,6 +215,89 @@ func assetMap(a db.Asset) map[string]any {
 		"size":       a.Size,
 		"created_at": a.CreatedAt,
 	}
+}
+
+func aclMap(settings db.SecuritySettings, rules []db.ACLRule) map[string]any {
+	items := make([]any, 0, len(rules))
+	for _, rule := range rules {
+		items = append(items, map[string]any{
+			"id":         rule.ID,
+			"scope":      rule.Scope,
+			"action":     rule.Action,
+			"cidr":       rule.CIDR,
+			"note":       rule.Note,
+			"enabled":    rule.Enabled,
+			"created_at": rule.CreatedAt,
+		})
+	}
+	return map[string]any{
+		"admin_default":          settings.AdminDefault,
+		"public_default":         settings.PublicDefault,
+		"admin_allow_countries":  settings.AdminAllowCountries,
+		"admin_deny_countries":   settings.AdminDenyCountries,
+		"public_allow_countries": settings.PublicAllowCountries,
+		"public_deny_countries":  settings.PublicDenyCountries,
+		"rules":                  items,
+	}
+}
+
+func aclFromMap(m map[string]any) (db.SecuritySettings, []db.ACLRule, error) {
+	settings := db.SecuritySettings{
+		AdminDefault:         cleanDefault(str(m, "admin_default")),
+		PublicDefault:        cleanDefault(str(m, "public_default")),
+		AdminAllowCountries:  str(m, "admin_allow_countries"),
+		AdminDenyCountries:   str(m, "admin_deny_countries"),
+		PublicAllowCountries: str(m, "public_allow_countries"),
+		PublicDenyCountries:  str(m, "public_deny_countries"),
+	}
+	rawRules, _ := m["rules"].([]any)
+	rules := make([]db.ACLRule, 0, len(rawRules))
+	for _, raw := range rawRules {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		cidr := strings.TrimSpace(str(item, "cidr"))
+		if cidr == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return db.SecuritySettings{}, nil, err
+		}
+		enabled := true
+		if v, ok := item["enabled"].(bool); ok {
+			enabled = v
+		}
+		rules = append(rules, db.ACLRule{
+			Scope:   cleanACLScope(str(item, "scope")),
+			Action:  cleanACLAction(str(item, "action")),
+			CIDR:    cidr,
+			Note:    str(item, "note"),
+			Enabled: enabled,
+		})
+	}
+	return settings, rules, nil
+}
+
+func cleanDefault(s string) string {
+	if strings.EqualFold(s, "deny") {
+		return "deny"
+	}
+	return "allow"
+}
+func cleanACLScope(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "admin", "public":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return "all"
+	}
+}
+func cleanACLAction(s string) string {
+	if strings.EqualFold(s, "allow") {
+		return "allow"
+	}
+	return "deny"
 }
 
 func settingsMap(settings db.Settings) map[string]any {

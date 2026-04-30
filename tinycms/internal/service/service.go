@@ -194,6 +194,7 @@ func settingsMap(settings db.Settings) map[string]any {
 		"logo_url":             settings.LogoURL,
 		"favicon_url":          settings.FaviconURL,
 		"default_theme":        settings.DefaultTheme,
+		"public_primary_color": settings.PublicPrimaryColor,
 		"footer_markdown":      settings.FooterMarkdown,
 		"menu":                 menu,
 		"logo_enabled":         settings.LogoEnabled,
@@ -213,6 +214,7 @@ func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, er
 		LogoURL:            cleanAssetURL(str(m, "logo_url")),
 		FaviconURL:         cleanAssetURL(str(m, "favicon_url")),
 		DefaultTheme:       cleanTheme(str(m, "default_theme")),
+		PublicPrimaryColor: cleanHexColor(str(m, "public_primary_color")),
 		FooterMarkdown:     str(m, "footer_markdown"),
 		Menu:               navItems(m["menu"]),
 		LogoEnabled:        boolean(m, "logo_enabled"),
@@ -296,6 +298,16 @@ func cleanTheme(s string) string {
 		return "dark"
 	}
 	return "light"
+}
+func cleanHexColor(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "#") {
+		s = "#" + s
+	}
+	if regexp.MustCompile(`^#[0-9a-fA-F]{6}$`).MatchString(s) {
+		return strings.ToLower(s)
+	}
+	return "#386bc0"
 }
 func cleanNavLayout(s string) string {
 	if strings.EqualFold(s, "side") {

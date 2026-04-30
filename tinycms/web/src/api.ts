@@ -17,6 +17,7 @@ export type SiteSettings = {
   logo_url:string
   favicon_url:string
   default_theme:'light'|'dark'
+  public_primary_color:string
   footer_markdown:string
   menu:NavItem[]
   logo_enabled:boolean

@@ -5,7 +5,7 @@ import type { UploadProps } from 'antd'
 import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage, imagePlugin, linkDialogPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, InsertCodeBlock, CodeToggle, ConditionalContents, ChangeCodeMirrorLanguage, Separator, InsertTable, tablePlugin, InsertThematicBreak } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
 import './style.css'
-import { api, Page, SiteSettings } from './api'
+import { api, NavItem, Page, SiteSettings } from './api'
 
 const palettes = {
   slate: { colorPrimary: '#2563eb', colorBgLayout: '#f4f7fb', colorText: '#172033', colorBorder: '#d8dee9' },
@@ -48,6 +48,8 @@ function Root() {
   const [settingsForm] = Form.useForm<SiteSettings>()
   const md = Form.useWatch('markdown', form) ?? ''
   const menuItems = Form.useWatch('menu', settingsForm) || []
+  const publicPrimaryColor = Form.useWatch('public_primary_color', settingsForm) || '#386bc0'
+  const publicDefaultTheme = Form.useWatch('default_theme', settingsForm) || 'light'
   const activePalette = palette === 'custom'
     ? { colorPrimary: customPrimary, colorBgLayout: adminDark ? '#0f172a' : '#f4f7fb', colorText: adminDark ? '#e5edf8' : '#172033', colorBorder: adminDark ? '#2c3b52' : '#d8dee9' }
     : palettes[palette]
@@ -102,8 +104,8 @@ function Root() {
   async function saveSettings() {
     setSavingSettings(true)
     try {
-      const values = settingsForm.getFieldsValue()
-      const menu = (values.menu || []).map(item => ({ ...item, id: item.id || newID(), parent_id: item.parent_id || '', url: pathify(item.url || ''), enabled: item.enabled !== false })).filter(item => item.label && item.url)
+      const values = settingsForm.getFieldsValue(true)
+      const menu = ((values.menu || []) as NavItem[]).map(item => ({ ...item, id: item.id || newID(), parent_id: item.parent_id || '', url: pathify(item.url || ''), enabled: item.enabled !== false })).filter(item => item.label && item.url)
       const r = await api.saveSettings({ ...values, menu })
       settingsForm.setFieldsValue(r.settings)
       message.success('Site settings saved')
@@ -235,7 +237,7 @@ function Root() {
           </Form>
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
-          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+          <Form form={settingsForm} layout="vertical" onFinish={saveSettings} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
             <Space className="topbar" align="start">
               <div>
                 <Typography.Title level={3}>Site settings</Typography.Title>
@@ -281,7 +283,7 @@ function Root() {
           <Space className="topbar" align="start">
             <div>
               <Typography.Title level={3}>Admin theme</Typography.Title>
-              <Typography.Text type="secondary">Pick a preset or use a custom primary color for the admin UI.</Typography.Text>
+              <Typography.Text type="secondary">Pick separate admin and public colors without coupling the editor to the visitor site.</Typography.Text>
             </div>
           </Space>
           <Space wrap className="themePicker">
@@ -290,6 +292,7 @@ function Root() {
             <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={setAdminDark} />
           </Space>
           <Form layout="vertical" className="customThemeForm">
+            <Typography.Title level={4}>Admin theme</Typography.Title>
             <Form.Item label="Custom primary color">
               <Space>
                 <Input type="color" value={customPrimary} onChange={e => { setCustomPrimary(e.target.value); setPalette('custom') }} className="colorInput" />
@@ -298,6 +301,24 @@ function Root() {
             </Form.Item>
             <Typography.Paragraph type="secondary">Suggested primary: <code>#386bc0</code>. The admin background, borders, editor, sliders, and selected states now derive from the active theme.</Typography.Paragraph>
           </Form>
+          <div className="publicThemePanel">
+            <Typography.Title level={4}>Public theme</Typography.Title>
+            <Typography.Paragraph type="secondary">These settings are saved and applied to visitor-facing pages.</Typography.Paragraph>
+            <Space wrap align="end">
+              <div>
+                <Typography.Text>Default mode</Typography.Text>
+                <Select className="themeSelect" value={publicDefaultTheme} onChange={value => settingsForm.setFieldValue('default_theme', value)} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} />
+              </div>
+              <div>
+                <Typography.Text>Primary color</Typography.Text>
+                <Space>
+                  <Input type="color" value={publicPrimaryColor} onChange={e => settingsForm.setFieldValue('public_primary_color', e.target.value)} className="colorInput" />
+                  <Input value={publicPrimaryColor} onChange={e => settingsForm.setFieldValue('public_primary_color', e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`)} />
+                </Space>
+              </div>
+              <Button type="primary" loading={savingSettings} onClick={saveSettings}>Save public theme</Button>
+            </Space>
+          </div>
         </Card> }
       ]} />
     </Layout.Content>

@@ -52,6 +52,7 @@ type Settings struct {
 	LogoURL            string    `json:"logo_url"`
 	FaviconURL         string    `json:"favicon_url"`
 	DefaultTheme       string    `json:"default_theme"`
+	PublicPrimaryColor string    `json:"public_primary_color"`
 	FooterMarkdown     string    `json:"footer_markdown"`
 	Menu               []NavItem `json:"menu"`
 	LogoEnabled        bool      `json:"logo_enabled"`
@@ -262,6 +263,9 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if settings.DefaultTheme == "" {
 		settings.DefaultTheme = "slate"
 	}
+	if settings.PublicPrimaryColor == "" {
+		settings.PublicPrimaryColor = "#386bc0"
+	}
 	if settings.NavLayout == "" {
 		settings.NavLayout = "top"
 	}
@@ -302,6 +306,7 @@ func DefaultSettings(siteName string) Settings {
 	return Settings{
 		SiteName:           siteName,
 		DefaultTheme:       "light",
+		PublicPrimaryColor: "#386bc0",
 		FooterMarkdown:     "© 2026 " + siteName + ". All rights reserved.",
 		LogoEnabled:        true,
 		FaviconEnabled:     true,

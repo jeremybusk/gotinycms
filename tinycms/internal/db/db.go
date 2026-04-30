@@ -53,6 +53,9 @@ type Settings struct {
 	FaviconURL         string    `json:"favicon_url"`
 	DefaultTheme       string    `json:"default_theme"`
 	PublicPrimaryColor string    `json:"public_primary_color"`
+	AdminTheme         string    `json:"admin_theme"`
+	AdminPrimaryColor  string    `json:"admin_primary_color"`
+	AdminPalette       string    `json:"admin_palette"`
 	FooterMarkdown     string    `json:"footer_markdown"`
 	Menu               []NavItem `json:"menu"`
 	LogoEnabled        bool      `json:"logo_enabled"`
@@ -260,11 +263,20 @@ func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Setti
 	if settings.SiteName == "" {
 		settings.SiteName = fallbackSiteName
 	}
-	if settings.DefaultTheme == "" {
-		settings.DefaultTheme = "slate"
+	if settings.DefaultTheme != "dark" {
+		settings.DefaultTheme = "light"
 	}
 	if settings.PublicPrimaryColor == "" {
 		settings.PublicPrimaryColor = "#386bc0"
+	}
+	if settings.AdminTheme != "dark" {
+		settings.AdminTheme = "light"
+	}
+	if settings.AdminPrimaryColor == "" {
+		settings.AdminPrimaryColor = "#386bc0"
+	}
+	if settings.AdminPalette == "" {
+		settings.AdminPalette = "slate"
 	}
 	if settings.NavLayout == "" {
 		settings.NavLayout = "top"
@@ -279,6 +291,15 @@ func (s *Store) SaveSettings(ctx context.Context, settings Settings) (Settings, 
 	}
 	if settings.DefaultTheme != "dark" {
 		settings.DefaultTheme = "light"
+	}
+	if settings.AdminTheme != "dark" {
+		settings.AdminTheme = "light"
+	}
+	if settings.AdminPrimaryColor == "" {
+		settings.AdminPrimaryColor = "#386bc0"
+	}
+	if settings.AdminPalette == "" {
+		settings.AdminPalette = "slate"
 	}
 	if settings.NavLayout != "side" {
 		settings.NavLayout = "top"
@@ -307,6 +328,9 @@ func DefaultSettings(siteName string) Settings {
 		SiteName:           siteName,
 		DefaultTheme:       "light",
 		PublicPrimaryColor: "#386bc0",
+		AdminTheme:         "light",
+		AdminPrimaryColor:  "#386bc0",
+		AdminPalette:       "slate",
 		FooterMarkdown:     "© 2026 " + siteName + ". All rights reserved.",
 		LogoEnabled:        true,
 		FaviconEnabled:     true,

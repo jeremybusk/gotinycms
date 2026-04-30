@@ -195,6 +195,9 @@ func settingsMap(settings db.Settings) map[string]any {
 		"favicon_url":          settings.FaviconURL,
 		"default_theme":        settings.DefaultTheme,
 		"public_primary_color": settings.PublicPrimaryColor,
+		"admin_theme":          settings.AdminTheme,
+		"admin_primary_color":  settings.AdminPrimaryColor,
+		"admin_palette":        settings.AdminPalette,
 		"footer_markdown":      settings.FooterMarkdown,
 		"menu":                 menu,
 		"logo_enabled":         settings.LogoEnabled,
@@ -215,6 +218,9 @@ func settingsFromMap(m map[string]any, fallbackSiteName string) (db.Settings, er
 		FaviconURL:         cleanAssetURL(str(m, "favicon_url")),
 		DefaultTheme:       cleanTheme(str(m, "default_theme")),
 		PublicPrimaryColor: cleanHexColor(str(m, "public_primary_color")),
+		AdminTheme:         cleanTheme(str(m, "admin_theme")),
+		AdminPrimaryColor:  cleanHexColor(str(m, "admin_primary_color")),
+		AdminPalette:       cleanPalette(str(m, "admin_palette")),
 		FooterMarkdown:     str(m, "footer_markdown"),
 		Menu:               navItems(m["menu"]),
 		LogoEnabled:        boolean(m, "logo_enabled"),
@@ -298,6 +304,14 @@ func cleanTheme(s string) string {
 		return "dark"
 	}
 	return "light"
+}
+func cleanPalette(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "forest", "ember", "mono", "custom":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return "slate"
+	}
 }
 func cleanHexColor(s string) string {
 	s = strings.TrimSpace(s)

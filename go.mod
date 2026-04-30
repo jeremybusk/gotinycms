@@ -1,4 +1,4 @@
-module uvoocms
+module uvoominicms
 
 go 1.26.2
 

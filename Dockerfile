@@ -13,16 +13,16 @@ COPY go.mod go.sum* ./
 RUN GOPROXY=direct go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
-RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o /out/uvoocms ./cmd/uvoocms
+RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o /out/uvoominicms ./cmd/uvoominicms
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates sqlite-libs && adduser -D -H -u 10001 uvoocms
+RUN apk add --no-cache ca-certificates sqlite-libs && adduser -D -H -u 10001 uvoominicms
 WORKDIR /app
-COPY --from=go /out/uvoocms /app/uvoocms
+COPY --from=go /out/uvoominicms /app/uvoominicms
 COPY --from=web /src/web/dist /app/web/dist
-RUN mkdir -p /data/uploads && chown -R uvoocms:uvoocms /data /app
-USER uvoocms
+RUN mkdir -p /data/uploads && chown -R uvoominicms:uvoominicms /data /app
+USER uvoominicms
 ENV CMS_ADDR=:8080 CMS_DATA_DIR=/data CMS_DB=/data/cms.db CMS_UPLOAD_DIR=/data/uploads
 EXPOSE 8080
 VOLUME ["/data"]
-ENTRYPOINT ["/app/uvoocms"]
+ENTRYPOINT ["/app/uvoominicms"]

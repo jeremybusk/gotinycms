@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"uvoocms/cmsv1connect"
-	"uvoocms/internal/acl"
-	"uvoocms/internal/auth"
-	"uvoocms/internal/config"
-	"uvoocms/internal/db"
-	"uvoocms/internal/geo"
-	"uvoocms/internal/service"
-	"uvoocms/internal/web"
+	"uvoominicms/cmsv1connect"
+	"uvoominicms/internal/acl"
+	"uvoominicms/internal/auth"
+	"uvoominicms/internal/config"
+	"uvoominicms/internal/db"
+	"uvoominicms/internal/geo"
+	"uvoominicms/internal/service"
+	"uvoominicms/internal/web"
 )
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 		log.Fatal("both TLS cert and key must be provided")
 	}
 	srv := &http.Server{Addr: cfg.Addr, Handler: secureHeaders(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20}
-	log.Printf("uvoocms listening on %s db=%s uploads=%s tls=%t", cfg.Addr, cfg.DBPath, filepath.Clean(cfg.UploadDir), tlsEnabled)
+	log.Printf("uvoominicms listening on %s db=%s uploads=%s tls=%t", cfg.Addr, cfg.DBPath, filepath.Clean(cfg.UploadDir), tlsEnabled)
 	if tlsEnabled {
 		log.Fatal(srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
 	}

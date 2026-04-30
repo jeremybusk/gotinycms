@@ -4,8 +4,8 @@ import (
 	"net"
 	"net/http"
 
-	"uvoocms/internal/auth"
-	"uvoocms/internal/db"
+	"uvoominicms/internal/auth"
+	"uvoominicms/internal/db"
 )
 
 type Filter struct {

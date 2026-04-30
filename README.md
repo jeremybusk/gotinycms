@@ -1,4 +1,4 @@
-# MiniCMS
+# UvooMiniCMS
 
 A deliberately small Hugo/WordPress-like CMS:
 
@@ -25,7 +25,7 @@ A deliberately small Hugo/WordPress-like CMS:
 ## Layout
 
 ```text
-cmd/uvoocms/           server entrypoint
+cmd/uvoominicms/           server entrypoint
 cmsv1connect/          tiny hand-written connect-go bindings using protobuf Struct
 internal/auth/         Basic Auth + IP filter middleware
 internal/config/       environment config
@@ -65,14 +65,14 @@ The Docker build uses the committed `web/package-lock.json` with `npm ci` for re
 Use modern Compose (`docker compose`, with a space). The old Python `docker-compose` v1.29.x can fail during container recreation with `KeyError: 'ContainerConfig'` on newer Docker engines. If you hit that, run:
 
 ```bash
-docker compose up -d --force-recreate --remove-orphans uvoocms
+docker compose up -d --force-recreate --remove-orphans uvoominicms
 ```
 
 The Makefile also includes `make docker-up`, `make docker-build`, and `make docker-down` wrappers that use modern Compose.
 
 ## Content Model
 
-MiniCMS keeps the editing model intentionally small:
+UvooMiniCMS keeps the editing model intentionally small:
 
 - `Admin slug` is the stable admin identifier used by API calls.
 - `Public route / SEO URL` is the published path visitors see, for example `/about/company`.
@@ -124,7 +124,7 @@ Icon names map to Font Awesome solid classes, so `{{icon:rocket}}` becomes `fa-s
 | Variable | Default | Notes |
 |---|---:|---|
 | `CMS_ADDR` | `:8080` | Listen address. |
-| `CMS_SITE_NAME` | `MiniCMS` | Public site name. |
+| `CMS_SITE_NAME` | `UvooMiniCMS` | Public site name. |
 | `CMS_ADMIN_USER` | `admin` | Basic Auth username. |
 | `CMS_ADMIN_PASS` | `change-me` | Basic Auth password. Change this. |
 | `CMS_DATA_DIR` | `./data` | Data root. |
@@ -143,7 +143,7 @@ Icon names map to Font Awesome solid classes, so `{{icon:rocket}}` becomes `fa-s
 Common CLI flags mirror the most useful env vars:
 
 ```bash
-uvoocms -addr :8443 -db ./data/cms.db -uploads ./data/uploads \
+uvoominicms -addr :8443 -db ./data/cms.db -uploads ./data/uploads \
   -admin-user admin -admin-pass 'change-me' \
   -allow-cidrs '203.0.113.10/32,2001:db8::/32' \
   -maxmind-db ./GeoLite2-Country.mmdb -allow-countries US,CA \

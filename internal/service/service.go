@@ -14,7 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/structpb"
-	"uvoocms/internal/db"
+	"uvoominicms/internal/db"
 )
 
 type Service struct {

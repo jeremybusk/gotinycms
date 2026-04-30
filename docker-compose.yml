@@ -1,5 +1,5 @@
 services:
-  uvoocms:
+  uvoominicms:
     build: .
     ports:
       - "8080:8080"

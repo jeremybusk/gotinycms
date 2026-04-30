@@ -12,6 +12,7 @@ export type Page = {
   updated_at:string
 }
 export type NavItem = { id:string; parent_id:string; label:string; url:string; external:boolean; enabled:boolean }
+export type Asset = { id:number; name:string; url:string; size:number; created_at:string }
 export type SiteSettings = {
   site_name:string
   logo_url:string
@@ -49,5 +50,6 @@ export const api = {
   deletePage: (slug:string) => rpc<{ok:boolean}>('DeletePage', { slug }),
   getSettings: () => rpc<{settings:SiteSettings}>('GetSettings'),
   saveSettings: (settings: SiteSettings) => rpc<{settings:SiteSettings}>('SaveSettings', settings),
-  uploadFile: (name:string, data:string) => rpc<{asset:{id:number; name:string; url:string; size:number}}>('UploadFile', { name, data })
+  listAssets: () => rpc<{assets:Asset[]}>('ListAssets'),
+  uploadFile: (name:string, data:string) => rpc<{asset:Asset}>('UploadFile', { name, data })
 }

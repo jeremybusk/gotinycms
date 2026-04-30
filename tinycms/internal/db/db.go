@@ -236,6 +236,26 @@ func (s *Store) InsertAsset(ctx context.Context, name, path, url string, size in
 	return Asset{ID: id, Name: name, Path: path, URL: url, Size: size, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}, nil
 }
 
+func (s *Store) ListAssets(ctx context.Context, limit int) ([]Asset, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT id,name,path,url,size,created_at FROM assets ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var assets []Asset
+	for rows.Next() {
+		var a Asset
+		if err := rows.Scan(&a.ID, &a.Name, &a.Path, &a.URL, &a.Size, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		assets = append(assets, a)
+	}
+	return assets, rows.Err()
+}
+
 func (s *Store) GetSettings(ctx context.Context, fallbackSiteName string) (Settings, error) {
 	settings := DefaultSettings(fallbackSiteName)
 	var raw string

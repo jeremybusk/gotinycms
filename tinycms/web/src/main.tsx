@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, List, Popconfirm, Select, Space, Switch, Tabs, Typography, Upload, message, theme } from 'antd'
+import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, List, Modal, Popconfirm, Select, Space, Switch, Tabs, Typography, Upload, message, theme } from 'antd'
 import type { UploadProps } from 'antd'
 import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage, imagePlugin, linkDialogPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, InsertCodeBlock, CodeToggle, ConditionalContents, ChangeCodeMirrorLanguage, Separator, InsertTable, tablePlugin, InsertThematicBreak } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
 import './style.css'
-import { api, NavItem, Page, SiteSettings } from './api'
+import { api, Asset, NavItem, Page, SiteSettings } from './api'
 
 const palettes = {
   slate: { colorPrimary: '#2563eb', colorBgLayout: '#f4f7fb', colorText: '#172033', colorBorder: '#d8dee9' },
@@ -33,12 +33,21 @@ function hexToRgb(hex:string) {
   const value = /^[0-9a-fA-F]{6}$/.test(cleaned) ? cleaned : '386bc0'
   return `${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)}`
 }
+function isImage(url:string) {
+  return /\.(avif|gif|jpe?g|png|webp)$/i.test(url)
+}
+function assetMarkdown(asset: Asset) {
+  return isImage(asset.url) ? `![${asset.name}](${asset.url})` : `[${asset.name}](${asset.url})`
+}
 
 function Root() {
   const [pages, setPages] = useState<Page[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
   const [active, setActive] = useState<Page | null>(null)
   const [saving, setSaving] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
   const [sourceMode, setSourceMode] = useState(false)
   const [editorRev, setEditorRev] = useState(0)
   const [palette, setPalette] = useState<Palette>('slate')
@@ -83,6 +92,7 @@ function Root() {
     '--admin-border': adminTokens.colorBorder,
     '--admin-shadow': adminDark ? '#00000055' : '#17203312'
   } as React.CSSProperties
+  const imageSuggestions = assets.filter(asset => isImage(asset.url)).map(asset => asset.url)
 
   async function loadPages() {
     const r = await api.listPages()
@@ -100,6 +110,15 @@ function Root() {
     setPublicPrimary(r.settings.public_primary_color || '#386bc0')
     setPublicSecondary(r.settings.public_secondary_color || '#64748b')
     setPublicHeaderStyle(r.settings.public_header_style || 'neutral')
+  }
+  async function loadAssets() {
+    setLoadingAssets(true)
+    try {
+      const r = await api.listAssets()
+      setAssets(r.assets)
+    } finally {
+      setLoadingAssets(false)
+    }
   }
   async function openPage(slug:string) {
     const r = await api.getPage(slug)
@@ -170,7 +189,13 @@ function Root() {
   useEffect(() => {
     loadPages().catch(e => message.error(e.message))
     loadSettings().catch(e => message.error(e.message))
+    loadAssets().catch(e => message.error(e.message))
   }, [])
+  useEffect(() => {
+    for (const [key, value] of Object.entries(adminVars)) {
+      document.documentElement.style.setProperty(key, String(value))
+    }
+  }, [adminVars])
 
   async function upload(file: File) {
     const data = await new Promise<string>((resolve, reject) => {
@@ -183,14 +208,22 @@ function Root() {
   }
   async function uploadImageForEditor(file: File) {
     const r = await upload(file)
+    setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
     return r.asset.url
+  }
+  function insertAsset(asset: Asset) {
+    form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n${assetMarkdown(asset)}\n`)
+    setEditorRev(rev => rev + 1)
+    setMediaOpen(false)
+    message.success('Asset inserted')
   }
 
   const contentUploadProps: UploadProps = {
     showUploadList: false,
     beforeUpload(file) {
       upload(file).then(r => {
-        form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n![${file.name}](${r.asset.url})\n`)
+        setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+        form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n${assetMarkdown(r.asset)}\n`)
         setEditorRev(rev => rev + 1)
         message.success('Uploaded')
       }).catch((e:any) => message.error(e.message))
@@ -203,11 +236,22 @@ function Root() {
       accept: field === 'favicon_url' ? '.ico,.png,.jpg,.jpeg,.webp' : '.png,.jpg,.jpeg,.webp,.avif',
       beforeUpload(file) {
         upload(file).then(r => {
+          setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
           settingsForm.setFieldValue(field, r.asset.url)
           message.success(field === 'logo_url' ? 'Logo uploaded' : 'Favicon uploaded')
         }).catch((e:any) => message.error(e.message))
         return false
       }
+    }
+  }
+  const mediaUploadProps: UploadProps = {
+    showUploadList: false,
+    beforeUpload(file) {
+      upload(file).then(r => {
+        setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+        message.success('Uploaded to media library')
+      }).catch((e:any) => message.error(e.message))
+      return false
     }
   }
 
@@ -250,7 +294,10 @@ function Root() {
             </Space>
             <Form.Item name="meta_description" label="SEO description"><Input.TextArea rows={2} maxLength={180} showCount placeholder="Short search/social description for this route." /></Form.Item>
             <Form.Item name="tags" label="Tags"><Input placeholder="news, services, security" /></Form.Item>
-            <Upload {...contentUploadProps}><Button>Upload image/file and insert Markdown link</Button></Upload>
+            <Space wrap>
+              <Upload {...contentUploadProps}><Button>Upload image/file and insert Markdown link</Button></Upload>
+              <Button onClick={() => { setMediaOpen(true); loadAssets().catch((e:any) => message.error(e.message)) }}>Browse existing uploads</Button>
+            </Space>
             <Form.Item name="markdown" label="Body" className="mdField">
               {sourceMode
                 ? <Input.TextArea rows={22} className="sourceEditor" value={md} onChange={e => form.setFieldValue('markdown', e.target.value)} />
@@ -261,7 +308,7 @@ function Root() {
                   thematicBreakPlugin(),
                   linkPlugin(),
                   linkDialogPlugin(),
-                  imagePlugin({ imageUploadHandler: uploadImageForEditor, imageAutocompleteSuggestions: ['/uploads/'] }),
+                  imagePlugin({ imageUploadHandler: uploadImageForEditor, imageAutocompleteSuggestions: imageSuggestions.length ? imageSuggestions : ['/uploads/'] }),
                   tablePlugin(),
                   codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
                   codeMirrorPlugin({ codeBlockLanguages: { text: 'Plain text', markdown: 'Markdown', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JSX', tsx: 'TSX', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Shell', go: 'Go', sql: 'SQL', yaml: 'YAML', mermaid: 'Mermaid diagram' } }),
@@ -273,6 +320,22 @@ function Root() {
                 ]} />}
             </Form.Item>
           </Form>
+          <Modal title="Browse uploads" open={mediaOpen} onCancel={() => setMediaOpen(false)} footer={null} width={920} className="mediaModal">
+            <MediaBrowser assets={assets} loading={loadingAssets} onInsert={insertAsset} onRefresh={() => loadAssets().catch((e:any) => message.error(e.message))} uploadProps={mediaUploadProps} />
+          </Modal>
+        </Card> },
+        { key:'media', label:'Media', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Media library</Typography.Title>
+              <Typography.Text type="secondary">Browse uploaded files and insert reusable images into the active page.</Typography.Text>
+            </div>
+            <Space wrap>
+              <Upload {...mediaUploadProps}><Button type="primary">Upload media</Button></Upload>
+              <Button onClick={() => loadAssets().catch((e:any) => message.error(e.message))} loading={loadingAssets}>Refresh</Button>
+            </Space>
+          </Space>
+          <MediaBrowser assets={assets} loading={loadingAssets} onInsert={insertAsset} onRefresh={() => loadAssets().catch((e:any) => message.error(e.message))} uploadProps={mediaUploadProps} />
         </Card> },
         { key:'site', label:'Site', children:<Card className="editorCard">
           <Form form={settingsForm} layout="vertical" onFinish={() => saveSettings()} initialValues={{site_name:'TinyCMS', default_theme:'light', public_primary_color:'#386bc0', public_secondary_color:'#64748b', public_header_style:'neutral', admin_theme:'light', admin_primary_color:'#386bc0', admin_secondary_color:'#64748b', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
@@ -387,6 +450,35 @@ function Root() {
       ]} />
     </Layout.Content>
   </Layout></AntApp></ConfigProvider>
+}
+
+function MediaBrowser({ assets, loading, onInsert, onRefresh, uploadProps }: { assets: Asset[]; loading: boolean; onInsert: (asset: Asset) => void; onRefresh: () => void; uploadProps: UploadProps }) {
+  const images = assets.filter(asset => isImage(asset.url))
+  const files = assets.filter(asset => !isImage(asset.url))
+  return <div>
+    <Space wrap className="mediaActions">
+      <Upload {...uploadProps}><Button>Upload file</Button></Upload>
+      <Button onClick={onRefresh} loading={loading}>Refresh</Button>
+      <Typography.Text type="secondary">{assets.length} upload(s)</Typography.Text>
+    </Space>
+    <Tabs items={[
+      { key:'images', label:`Images (${images.length})`, children: images.length ? <div className="mediaGrid">
+        {images.map(asset => <div className="mediaTile" key={asset.id}>
+          <button type="button" className="mediaPreview" onClick={() => onInsert(asset)} aria-label={`Insert ${asset.name}`}>
+            <img src={asset.url} alt={asset.name} />
+          </button>
+          <Typography.Text ellipsis title={asset.name}>{asset.name}</Typography.Text>
+          <Space wrap>
+            <Button size="small" type="primary" onClick={() => onInsert(asset)}>Insert</Button>
+            <Button size="small" href={asset.url} target="_blank">View</Button>
+          </Space>
+        </div>)}
+      </div> : <div className="emptyMedia"><Typography.Text type="secondary">No uploaded images yet.</Typography.Text></div> },
+      { key:'files', label:`Files (${files.length})`, children: files.length ? <List className="mediaFileList" dataSource={files} renderItem={asset => <List.Item actions={[<Button size="small" type="primary" onClick={() => onInsert(asset)}>Insert link</Button>, <Button size="small" href={asset.url} target="_blank">View</Button>]}>
+        <List.Item.Meta title={asset.name} description={`${Math.round(asset.size / 1024)} KB · ${asset.url}`} />
+      </List.Item>} /> : <div className="emptyMedia"><Typography.Text type="secondary">No uploaded files yet.</Typography.Text></div> }
+    ]} />
+  </div>
 }
 
 createRoot(document.getElementById('root')!).render(<Root />)

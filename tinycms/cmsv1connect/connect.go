@@ -18,6 +18,7 @@ const (
 	CMSServiceDeletePageProcedure   = "/cms.v1.CMSService/DeletePage"
 	CMSServiceGetSettingsProcedure  = "/cms.v1.CMSService/GetSettings"
 	CMSServiceSaveSettingsProcedure = "/cms.v1.CMSService/SaveSettings"
+	CMSServiceListAssetsProcedure   = "/cms.v1.CMSService/ListAssets"
 	CMSServiceUploadFileProcedure   = "/cms.v1.CMSService/UploadFile"
 )
 
@@ -29,6 +30,7 @@ type CMSServiceHandler interface {
 	DeletePage(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 	GetSettings(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 	SaveSettings(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
+	ListAssets(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 	UploadFile(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 }
 
@@ -41,6 +43,7 @@ func NewCMSServiceHandler(svc CMSServiceHandler, opts ...connect.HandlerOption) 
 	mux.Handle(CMSServiceDeletePageProcedure, connect.NewUnaryHandler(CMSServiceDeletePageProcedure, svc.DeletePage, opts...))
 	mux.Handle(CMSServiceGetSettingsProcedure, connect.NewUnaryHandler(CMSServiceGetSettingsProcedure, svc.GetSettings, opts...))
 	mux.Handle(CMSServiceSaveSettingsProcedure, connect.NewUnaryHandler(CMSServiceSaveSettingsProcedure, svc.SaveSettings, opts...))
+	mux.Handle(CMSServiceListAssetsProcedure, connect.NewUnaryHandler(CMSServiceListAssetsProcedure, svc.ListAssets, opts...))
 	mux.Handle(CMSServiceUploadFileProcedure, connect.NewUnaryHandler(CMSServiceUploadFileProcedure, svc.UploadFile, opts...))
 	return "/cms.v1.CMSService/", mux
 }

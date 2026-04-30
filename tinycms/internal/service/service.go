@@ -119,6 +119,17 @@ func (s *Service) SaveSettings(ctx context.Context, req *connect.Request[structp
 	}
 	return ok(map[string]any{"settings": settingsMap(settings)})
 }
+func (s *Service) ListAssets(ctx context.Context, _ *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
+	assets, err := s.Store.ListAssets(ctx, 120)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	items := make([]any, 0, len(assets))
+	for _, asset := range assets {
+		items = append(items, assetMap(asset))
+	}
+	return ok(map[string]any{"assets": items})
+}
 func (s *Service) UploadFile(ctx context.Context, req *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error) {
 	m := fields(req)
 	name := safeName(str(m, "name"))
@@ -155,7 +166,7 @@ func (s *Service) UploadFile(ctx context.Context, req *connect.Request[structpb.
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return ok(map[string]any{"asset": map[string]any{"id": a.ID, "name": a.Name, "url": a.URL, "size": a.Size}})
+	return ok(map[string]any{"asset": assetMap(a)})
 }
 
 func pageMap(p db.Page, body bool) map[string]any {
@@ -175,6 +186,16 @@ func pageMap(p db.Page, body bool) map[string]any {
 		m["markdown"] = p.Markdown
 	}
 	return m
+}
+
+func assetMap(a db.Asset) map[string]any {
+	return map[string]any{
+		"id":         a.ID,
+		"name":       a.Name,
+		"url":        a.URL,
+		"size":       a.Size,
+		"created_at": a.CreatedAt,
+	}
 }
 
 func settingsMap(settings db.Settings) map[string]any {

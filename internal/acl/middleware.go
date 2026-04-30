@@ -4,8 +4,8 @@ import (
 	"net"
 	"net/http"
 
-	"tinycms/internal/auth"
-	"tinycms/internal/db"
+	"uvoocms/internal/auth"
+	"uvoocms/internal/db"
 )
 
 type Filter struct {

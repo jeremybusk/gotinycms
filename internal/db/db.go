@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS acl_rules (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 INSERT INTO pages(slug,title,markdown,published)
-SELECT 'home','Home','# Welcome to TinyCMS\n\nEdit this page from /admin.',1
+SELECT 'home','Home','# Welcome to MiniCMS\n\nEdit this page from /admin.',1
 WHERE NOT EXISTS (SELECT 1 FROM pages WHERE slug='home');`)
 	if err != nil {
 		return err
@@ -454,7 +454,7 @@ ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated
 
 func DefaultSettings(siteName string) Settings {
 	if siteName == "" {
-		siteName = "TinyCMS"
+		siteName = "MiniCMS"
 	}
 	return Settings{
 		SiteName:             siteName,

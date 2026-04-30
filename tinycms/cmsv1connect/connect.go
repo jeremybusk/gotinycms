@@ -20,6 +20,8 @@ const (
 	CMSServiceSaveSettingsProcedure = "/cms.v1.CMSService/SaveSettings"
 	CMSServiceListAssetsProcedure   = "/cms.v1.CMSService/ListAssets"
 	CMSServiceUploadFileProcedure   = "/cms.v1.CMSService/UploadFile"
+	CMSServiceGetACLProcedure       = "/cms.v1.CMSService/GetACL"
+	CMSServiceSaveACLProcedure      = "/cms.v1.CMSService/SaveACL"
 )
 
 type CMSServiceHandler interface {
@@ -32,6 +34,8 @@ type CMSServiceHandler interface {
 	SaveSettings(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 	ListAssets(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 	UploadFile(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
+	GetACL(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
+	SaveACL(context.Context, *connect.Request[structpb.Struct]) (*connect.Response[structpb.Struct], error)
 }
 
 func NewCMSServiceHandler(svc CMSServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
@@ -45,5 +49,7 @@ func NewCMSServiceHandler(svc CMSServiceHandler, opts ...connect.HandlerOption) 
 	mux.Handle(CMSServiceSaveSettingsProcedure, connect.NewUnaryHandler(CMSServiceSaveSettingsProcedure, svc.SaveSettings, opts...))
 	mux.Handle(CMSServiceListAssetsProcedure, connect.NewUnaryHandler(CMSServiceListAssetsProcedure, svc.ListAssets, opts...))
 	mux.Handle(CMSServiceUploadFileProcedure, connect.NewUnaryHandler(CMSServiceUploadFileProcedure, svc.UploadFile, opts...))
+	mux.Handle(CMSServiceGetACLProcedure, connect.NewUnaryHandler(CMSServiceGetACLProcedure, svc.GetACL, opts...))
+	mux.Handle(CMSServiceSaveACLProcedure, connect.NewUnaryHandler(CMSServiceSaveACLProcedure, svc.SaveACL, opts...))
 	return "/cms.v1.CMSService/", mux
 }

@@ -18,6 +18,8 @@ A deliberately small Hugo/WordPress-like CMS:
 - Global logo, favicon, top menu, public theme, and footer settings.
 - IP CIDR allow/deny middleware.
 - Optional MaxMind GeoIP country allow/deny middleware.
+- Optional built-in TLS via cert/key files.
+- SQLite-backed admin/public network ACLs in the admin UI.
 - Four lightweight admin palettes with `slate` as the default.
 
 ## Layout
@@ -129,6 +131,8 @@ Icon names map to Font Awesome solid classes, so `{{icon:rocket}}` becomes `fa-s
 | `CMS_DB` | `./data/cms.db` | SQLite DB path. |
 | `CMS_UPLOAD_DIR` | `./data/uploads` | Upload directory. |
 | `CMS_MAX_UPLOAD_BYTES` | `26214400` | Max upload size. |
+| `CMS_TLS_CERT` | empty | TLS certificate file. Requires `CMS_TLS_KEY`; enables HTTPS when both are set. |
+| `CMS_TLS_KEY` | empty | TLS private key file. Requires `CMS_TLS_CERT`. |
 | `CMS_ALLOW_CIDRS` | empty | Comma-separated CIDRs. Empty means allow all. |
 | `CMS_DENY_CIDRS` | empty | Comma-separated denied CIDRs. |
 | `CMS_TRUST_PROXY_HEADERS` | `false` | Enables `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For`. Only enable behind trusted reverse proxy. |
@@ -136,9 +140,28 @@ Icon names map to Font Awesome solid classes, so `{{icon:rocket}}` becomes `fa-s
 | `CMS_ALLOW_COUNTRIES` | empty | ISO country allow list, e.g. `US,CA`. Empty means allow all except denied. |
 | `CMS_DENY_COUNTRIES` | empty | ISO country deny list. |
 
+Common CLI flags mirror the most useful env vars:
+
+```bash
+tinycms -addr :8443 -db ./data/cms.db -uploads ./data/uploads \
+  -admin-user admin -admin-pass 'change-me' \
+  -allow-cidrs '203.0.113.10/32,2001:db8::/32' \
+  -maxmind-db ./GeoLite2-Country.mmdb -allow-countries US,CA \
+  -tls-cert ./certs/site.crt -tls-key ./certs/site.key
+```
+
+## Security ACLs
+
+The admin `Security` tab adds runtime rules without needing to restart:
+
+- Admin/API and public/uploads each have a default policy: allow unless denied, or deny unless allowed.
+- CIDR rules support IPv4 and IPv6, for example `203.0.113.10/32`, `198.51.100.0/24`, and `2001:db8::/32`.
+- Country allow/deny fields can be scoped to admin/API or public/uploads when `CMS_MAXMIND_DB` is configured.
+- Environment CIDR rules (`CMS_ALLOW_CIDRS` and `CMS_DENY_CIDRS`) still run first as a hard outer guard.
+
 ## Security notes
 
-- Put it behind TLS. Basic Auth is only safe over HTTPS.
+- Use TLS directly with `CMS_TLS_CERT`/`CMS_TLS_KEY`, or put it behind HTTPS. Basic Auth is only safe over HTTPS.
 - Set a strong `CMS_ADMIN_PASS`.
 - Keep `CMS_TRUST_PROXY_HEADERS=false` unless a trusted proxy strips and rewrites those headers.
 - Public uploads are limited to common image/text/document extensions.

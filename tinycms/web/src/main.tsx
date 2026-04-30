@@ -5,7 +5,7 @@ import type { UploadProps } from 'antd'
 import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage, imagePlugin, linkDialogPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, InsertCodeBlock, CodeToggle, ConditionalContents, ChangeCodeMirrorLanguage, Separator, InsertTable, tablePlugin, InsertThematicBreak } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
 import './style.css'
-import { api, Asset, NavItem, Page, SiteSettings } from './api'
+import { api, ACLRule, ACLSettings, Asset, NavItem, Page, SiteSettings } from './api'
 
 const palettes = {
   slate: { colorPrimary: '#2563eb', colorBgLayout: '#f4f7fb', colorText: '#172033', colorBorder: '#d8dee9' },
@@ -39,13 +39,24 @@ function isImage(url:string) {
 function assetMarkdown(asset: Asset) {
   return isImage(asset.url) ? `![${asset.name}](${asset.url})` : `[${asset.name}](${asset.url})`
 }
+const emptyACL: ACLSettings = {
+  admin_default: 'allow',
+  public_default: 'allow',
+  admin_allow_countries: '',
+  admin_deny_countries: '',
+  public_allow_countries: '',
+  public_deny_countries: '',
+  rules: []
+}
 
 function Root() {
   const [pages, setPages] = useState<Page[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
+  const [acl, setACL] = useState<ACLSettings>(emptyACL)
   const [active, setActive] = useState<Page | null>(null)
   const [saving, setSaving] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [savingACL, setSavingACL] = useState(false)
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [mediaOpen, setMediaOpen] = useState(false)
   const [sourceMode, setSourceMode] = useState(false)
@@ -120,6 +131,10 @@ function Root() {
       setLoadingAssets(false)
     }
   }
+  async function loadACL() {
+    const r = await api.getACL()
+    setACL({ ...emptyACL, ...r.acl, rules: r.acl.rules || [] })
+  }
   async function openPage(slug:string) {
     const r = await api.getPage(slug)
     setActive(r.page)
@@ -172,6 +187,39 @@ function Root() {
       setSavingSettings(false)
     }
   }
+  async function saveACL() {
+    setSavingACL(true)
+    try {
+      const clean: ACLSettings = {
+        ...acl,
+        rules: acl.rules.map(rule => ({
+          ...rule,
+          cidr: rule.cidr.trim(),
+          note: rule.note.trim(),
+          enabled: rule.enabled !== false
+        })).filter(rule => rule.cidr)
+      }
+      const r = await api.saveACL(clean)
+      setACL({ ...emptyACL, ...r.acl, rules: r.acl.rules || [] })
+      message.success('Security rules saved')
+    } catch(e:any) {
+      message.error(e.message)
+    } finally {
+      setSavingACL(false)
+    }
+  }
+  function setACLField<K extends keyof ACLSettings>(key: K, value: ACLSettings[K]) {
+    setACL(current => ({ ...current, [key]: value }))
+  }
+  function addACLRule() {
+    setACL(current => ({ ...current, rules: [...current.rules, { scope: 'admin', action: 'allow', cidr: '', note: '', enabled: true }] }))
+  }
+  function updateACLRule(index:number, patch: Partial<ACLRule>) {
+    setACL(current => ({ ...current, rules: current.rules.map((rule, i) => i === index ? { ...rule, ...patch } : rule) }))
+  }
+  function removeACLRule(index:number) {
+    setACL(current => ({ ...current, rules: current.rules.filter((_, i) => i !== index) }))
+  }
   async function removePage(slug:string) {
     await api.deletePage(slug)
     setActive(null)
@@ -190,6 +238,7 @@ function Root() {
     loadPages().catch(e => message.error(e.message))
     loadSettings().catch(e => message.error(e.message))
     loadAssets().catch(e => message.error(e.message))
+    loadACL().catch(e => message.error(e.message))
   }, [])
   useEffect(() => {
     for (const [key, value] of Object.entries(adminVars)) {
@@ -379,6 +428,76 @@ function Root() {
             </>}</Form.List>
             <Form.Item name="footer_markdown" label="Global footer Markdown" className="footerField"><Input.TextArea rows={6} placeholder="© 2026 Your Company. All rights reserved." /></Form.Item>
           </Form>
+        </Card> },
+        { key:'security', label:'Security', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Security</Typography.Title>
+              <Typography.Text type="secondary">Small SQLite-backed network rules for admin/API and public traffic. Environment CIDR rules still run first.</Typography.Text>
+            </div>
+            <Button type="primary" loading={savingACL} onClick={saveACL}>Save security</Button>
+          </Space>
+          <Typography.Paragraph type="secondary" className="securityNote">
+            Use CIDR rules like <code>203.0.113.10/32</code>, <code>198.51.100.0/24</code>, or <code>2001:db8::/32</code>. Country rules require <code>CMS_MAXMIND_DB</code>; leave allow lists empty unless you want to restrict to only those countries.
+          </Typography.Paragraph>
+          <div className="securityGrid">
+            <label>
+              <Typography.Text strong>Admin/API default</Typography.Text>
+              <Select value={acl.admin_default} onChange={value => setACLField('admin_default', value)} options={[{label:'Allow unless denied', value:'allow'}, {label:'Deny unless allowed', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text strong>Public/uploads default</Typography.Text>
+              <Select value={acl.public_default} onChange={value => setACLField('public_default', value)} options={[{label:'Allow unless denied', value:'allow'}, {label:'Deny unless allowed', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text strong>Admin country allow</Typography.Text>
+              <Input value={acl.admin_allow_countries} onChange={e => setACLField('admin_allow_countries', e.target.value)} placeholder="US, CA" />
+            </label>
+            <label>
+              <Typography.Text strong>Admin country deny</Typography.Text>
+              <Input value={acl.admin_deny_countries} onChange={e => setACLField('admin_deny_countries', e.target.value)} placeholder="RU, KP" />
+            </label>
+            <label>
+              <Typography.Text strong>Public country allow</Typography.Text>
+              <Input value={acl.public_allow_countries} onChange={e => setACLField('public_allow_countries', e.target.value)} placeholder="US, CA, GB" />
+            </label>
+            <label>
+              <Typography.Text strong>Public country deny</Typography.Text>
+              <Input value={acl.public_deny_countries} onChange={e => setACLField('public_deny_countries', e.target.value)} placeholder="RU, KP" />
+            </label>
+          </div>
+          <Space className="aclHeader" align="center">
+            <Typography.Title level={4}>CIDR rules</Typography.Title>
+            <Button onClick={addACLRule}>Add rule</Button>
+          </Space>
+          {acl.rules.length === 0 && <div className="emptyMedia"><Typography.Text type="secondary">No database ACL rules yet. Defaults and environment rules still apply.</Typography.Text></div>}
+          {acl.rules.map((rule, index) => <div className="aclRow" key={`${rule.id || 'new'}-${index}`}>
+            <label>
+              <Typography.Text>Scope</Typography.Text>
+              <Select value={rule.scope} onChange={value => updateACLRule(index, { scope: value })} options={[{label:'All', value:'all'}, {label:'Admin/API', value:'admin'}, {label:'Public', value:'public'}]} />
+            </label>
+            <label>
+              <Typography.Text>Action</Typography.Text>
+              <Select value={rule.action} onChange={value => updateACLRule(index, { action: value })} options={[{label:'Allow', value:'allow'}, {label:'Deny', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text>CIDR</Typography.Text>
+              <Input value={rule.cidr} onChange={e => updateACLRule(index, { cidr: e.target.value })} placeholder="203.0.113.10/32" />
+            </label>
+            <label className="aclSwitch">
+              <Typography.Text>Enabled</Typography.Text>
+              <Switch checked={rule.enabled !== false} onChange={checked => updateACLRule(index, { enabled: checked })} />
+            </label>
+            <label>
+              <Typography.Text>Note</Typography.Text>
+              <Input value={rule.note} onChange={e => updateACLRule(index, { note: e.target.value })} placeholder="office, VPN, vendor" />
+            </label>
+            <Button danger onClick={() => removeACLRule(index)}>Remove</Button>
+          </div>)}
+          <Space wrap className="securityActions">
+            <Button onClick={addACLRule}>Add rule</Button>
+            <Button type="primary" loading={savingACL} onClick={saveACL}>Save security</Button>
+          </Space>
         </Card> },
         { key:'theme', label:'Theme', children:<Card className="editorCard">
           <Space className="topbar" align="start">

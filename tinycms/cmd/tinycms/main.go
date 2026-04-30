@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"tinycms/cmsv1connect"
+	"tinycms/internal/acl"
 	"tinycms/internal/auth"
 	"tinycms/internal/config"
 	"tinycms/internal/db"
@@ -32,15 +33,26 @@ func main() {
 	admin := http.FileServer(http.Dir("web/dist"))
 	uploads := http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.UploadDir)))
 	pub := web.NewPublic(store, cfg.PublicSiteName)
+	adminACL := acl.Filter{Store: store, Scope: "admin", TrustProxy: cfg.TrustProxyHeaders}
+	publicACL := acl.Filter{Store: store, Scope: "public", TrustProxy: cfg.TrustProxyHeaders}
+	adminGeo := geof.WithStore(store, "admin")
+	publicGeo := geof.WithStore(store, "public")
 
 	mux := http.NewServeMux()
-	mux.Handle("/cms.v1.CMSService/", chain(api, ipf.Middleware, geof.Middleware, auth.Basic{User: cfg.AdminUser, Pass: cfg.AdminPass}.Middleware))
-	mux.Handle("/uploads/", chain(uploads, ipf.Middleware, geof.Middleware))
-	mux.Handle("/admin/", chain(http.StripPrefix("/admin/", admin), ipf.Middleware, geof.Middleware, auth.Basic{User: cfg.AdminUser, Pass: cfg.AdminPass}.Middleware))
-	mux.Handle("/", chain(pub, ipf.Middleware, geof.Middleware))
+	mux.Handle("/cms.v1.CMSService/", chain(api, ipf.Middleware, adminACL.Middleware, adminGeo.Middleware, auth.Basic{User: cfg.AdminUser, Pass: cfg.AdminPass}.Middleware))
+	mux.Handle("/uploads/", chain(uploads, ipf.Middleware, publicACL.Middleware, publicGeo.Middleware))
+	mux.Handle("/admin/", chain(http.StripPrefix("/admin/", admin), ipf.Middleware, adminACL.Middleware, adminGeo.Middleware, auth.Basic{User: cfg.AdminUser, Pass: cfg.AdminPass}.Middleware))
+	mux.Handle("/", chain(pub, ipf.Middleware, publicACL.Middleware, publicGeo.Middleware))
 
+	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
+	if (cfg.TLSCertFile == "") != (cfg.TLSKeyFile == "") {
+		log.Fatal("both TLS cert and key must be provided")
+	}
 	srv := &http.Server{Addr: cfg.Addr, Handler: secureHeaders(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20}
-	log.Printf("tinycms listening on %s db=%s uploads=%s", cfg.Addr, cfg.DBPath, filepath.Clean(cfg.UploadDir))
+	log.Printf("tinycms listening on %s db=%s uploads=%s tls=%t", cfg.Addr, cfg.DBPath, filepath.Clean(cfg.UploadDir), tlsEnabled)
+	if tlsEnabled {
+		log.Fatal(srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
+	}
 	log.Fatal(srv.ListenAndServe())
 }
 

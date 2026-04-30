@@ -14,7 +14,7 @@ const palettes = {
   mono: { colorPrimary: '#111827', colorBgLayout: '#f9fafb', colorText: '#111827', colorBorder: '#e5e7eb' }
 }
 
-type Palette = keyof typeof palettes
+type Palette = keyof typeof palettes | 'custom'
 
 function slugify(s:string) { return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') }
 function pathify(s:string) {
@@ -28,6 +28,11 @@ function freshPage() {
 function newID() {
   return globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
+function hexToRgb(hex:string) {
+  const cleaned = hex.replace('#', '')
+  const value = /^[0-9a-fA-F]{6}$/.test(cleaned) ? cleaned : '386bc0'
+  return `${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)}`
+}
 
 function Root() {
   const [pages, setPages] = useState<Page[]>([])
@@ -37,12 +42,31 @@ function Root() {
   const [sourceMode, setSourceMode] = useState(false)
   const [editorRev, setEditorRev] = useState(0)
   const [palette, setPalette] = useState<Palette>('slate')
+  const [customPrimary, setCustomPrimary] = useState('#386bc0')
   const [adminDark, setAdminDark] = useState(false)
   const [form] = Form.useForm()
   const [settingsForm] = Form.useForm<SiteSettings>()
   const md = Form.useWatch('markdown', form) ?? ''
   const menuItems = Form.useWatch('menu', settingsForm) || []
-  const cfg = useMemo(() => ({ token: palettes[palette], algorithm: adminDark ? theme.darkAlgorithm : theme.defaultAlgorithm }), [palette, adminDark])
+  const activePalette = palette === 'custom'
+    ? { colorPrimary: customPrimary, colorBgLayout: adminDark ? '#0f172a' : '#f4f7fb', colorText: adminDark ? '#e5edf8' : '#172033', colorBorder: adminDark ? '#2c3b52' : '#d8dee9' }
+    : palettes[palette]
+  const cfg = useMemo(() => ({
+    token: activePalette,
+    algorithm: adminDark ? theme.darkAlgorithm : theme.defaultAlgorithm
+  }), [activePalette, adminDark])
+  const adminVars = {
+    '--admin-primary': activePalette.colorPrimary,
+    '--admin-primary-rgb': hexToRgb(activePalette.colorPrimary),
+    '--admin-bg': adminDark ? '#0f172a' : activePalette.colorBgLayout,
+    '--admin-bg-soft': adminDark ? '#111827' : '#eaf1fb',
+    '--admin-surface': adminDark ? '#172033' : '#ffffff',
+    '--admin-surface-2': adminDark ? '#1f2a3d' : '#f8fafc',
+    '--admin-text': activePalette.colorText,
+    '--admin-muted': adminDark ? '#9fb0c7' : '#657085',
+    '--admin-border': activePalette.colorBorder,
+    '--admin-shadow': adminDark ? '#00000055' : '#17203312'
+  } as React.CSSProperties
 
   async function loadPages() {
     const r = await api.listPages()
@@ -147,11 +171,12 @@ function Root() {
     }
   }
 
-  return <ConfigProvider theme={cfg}><AntApp><Layout className="layout">
+  return <ConfigProvider theme={cfg}><AntApp><Layout className="layout" style={adminVars}>
     <Layout.Sider className="sider" width={310} breakpoint="lg" collapsedWidth={0}>
       <div className="brand">TinyCMS</div>
       <Space wrap className="palettes">
         {Object.keys(palettes).map(p => <Button key={p} size="small" type={p===palette?'primary':'default'} onClick={() => setPalette(p as Palette)}>{p}</Button>)}
+        <Button size="small" type={palette==='custom'?'primary':'default'} onClick={() => setPalette('custom')}>custom</Button>
         <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={setAdminDark} />
       </Space>
       <Button block type="primary" onClick={newPage}>New page</Button>
@@ -250,6 +275,28 @@ function Root() {
               <Button onClick={() => add({id:newID(), parent_id:'', label:'', url:'/', external:false, enabled:true})}>Add menu item</Button>
             </>}</Form.List>
             <Form.Item name="footer_markdown" label="Global footer Markdown" className="footerField"><Input.TextArea rows={6} placeholder="© 2026 Your Company. All rights reserved." /></Form.Item>
+          </Form>
+        </Card> },
+        { key:'theme', label:'Admin Theme', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Admin theme</Typography.Title>
+              <Typography.Text type="secondary">Pick a preset or use a custom primary color for the admin UI.</Typography.Text>
+            </div>
+          </Space>
+          <Space wrap className="themePicker">
+            {Object.keys(palettes).map(p => <Button key={p} type={p===palette?'primary':'default'} onClick={() => setPalette(p as Palette)}>{p}</Button>)}
+            <Button type={palette==='custom'?'primary':'default'} onClick={() => setPalette('custom')}>Custom</Button>
+            <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={setAdminDark} />
+          </Space>
+          <Form layout="vertical" className="customThemeForm">
+            <Form.Item label="Custom primary color">
+              <Space>
+                <Input type="color" value={customPrimary} onChange={e => { setCustomPrimary(e.target.value); setPalette('custom') }} className="colorInput" />
+                <Input value={customPrimary} onChange={e => { setCustomPrimary(e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`); setPalette('custom') }} />
+              </Space>
+            </Form.Item>
+            <Typography.Paragraph type="secondary">Suggested primary: <code>#386bc0</code>. The admin background, borders, editor, sliders, and selected states now derive from the active theme.</Typography.Paragraph>
           </Form>
         </Card> }
       ]} />

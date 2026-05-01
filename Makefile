@@ -1,10 +1,13 @@
-.PHONY: dev build run web docker-up docker-build docker-down
+.PHONY: dev build package run web docker-up docker-build docker-down
 
 web:
 	cd web && npm install && npm run build
 
-build: web
-	go build -trimpath -ldflags='-s -w' -o bin/uvoominicms ./cmd/uvoominicms
+build:
+	bash scripts/build.sh
+
+package:
+	bash scripts/package.sh
 
 run: build
 	./bin/uvoominicms

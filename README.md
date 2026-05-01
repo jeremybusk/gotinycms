@@ -52,6 +52,34 @@ Open:
 
 Default login is `admin` / `change-me` unless changed in `.env`.
 
+## Non-Docker Linux Build
+
+For a tiny tarball-style install, build the admin UI and a native Go binary on the target Linux machine:
+
+```bash
+./scripts/build.sh
+./bin/uvoominicms
+```
+
+To create a redistributable archive:
+
+```bash
+./scripts/package.sh
+# creates dist/uvoominicms-<version>-linux-<arch>.tar.gz
+```
+
+A user can run the archive like this:
+
+```bash
+tar -xzf uvoominicms-*.tar.gz
+cd uvoominicms-*
+cp .env.example .env
+# edit CMS_ADMIN_PASS
+./run.sh
+```
+
+The binary must be built for the same Linux libc family it will run on. Copying `/app/uvoominicms` out of the Alpine Docker image can fail on Ubuntu/Debian with `cannot execute: required file not found` because that container binary expects Alpine musl libraries. Use `scripts/package.sh` on the target distro, or publish separate distro-compatible tarballs.
+
 ## Docker
 
 ```bash

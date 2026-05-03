@@ -332,6 +332,83 @@ body,
   background: var(--admin-surface-2) !important;
 }
 
+.mdField .cm-editor {
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mdField .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.mdField .cm-line,
+.mdField .cm-content {
+  color: var(--admin-text) !important;
+}
+
+.mdField .cm-cursor,
+.mdField .cm-dropCursor {
+  border-left-color: var(--admin-text) !important;
+  border-left-width: 2px !important;
+}
+
+.mdField .cm-focused .cm-cursor {
+  border-left-color: var(--admin-primary) !important;
+}
+
+.mdField .cm-activeLine,
+.mdField .cm-activeLineGutter {
+  background: rgba(var(--admin-primary-rgb), .1) !important;
+}
+
+.mdField .cm-selectionBackground,
+.mdField .cm-focused .cm-selectionBackground {
+  background: rgba(var(--admin-primary-rgb), .28) !important;
+}
+
+.mdField .cm-content ::selection {
+  color: var(--admin-text) !important;
+  background: rgba(var(--admin-primary-rgb), .28) !important;
+}
+
+.mdField .dark-theme .cm-editor,
+.mdField .dark-theme .cm-gutters {
+  color: #e5edf8 !important;
+  background: #111827 !important;
+}
+
+.mdField .dark-theme .cm-line,
+.mdField .dark-theme .cm-content {
+  color: #e5edf8 !important;
+}
+
+.mdField .dark-theme .cm-cursor,
+.mdField .dark-theme .cm-dropCursor,
+.mdField .dark-theme .cm-focused .cm-cursor {
+  border-left-color: #f8fafc !important;
+}
+
+.mdField .dark-theme .cm-selectionBackground,
+.mdField .dark-theme .cm-focused .cm-selectionBackground,
+.mdField .dark-theme .cm-activeLine,
+.mdField .dark-theme .cm-activeLineGutter {
+  background: #c7ddff !important;
+}
+
+.mdField .dark-theme .cm-activeLine,
+.mdField .dark-theme .cm-activeLine *,
+.mdField .dark-theme .cm-activeLineGutter {
+  color: #07111f !important;
+}
+
+.mdField .dark-theme .cm-content ::selection {
+  color: #07111f !important;
+  background: #c7ddff !important;
+}
+
 .sourceEditor,
 .sourceEditor textarea {
   color: var(--admin-text) !important;

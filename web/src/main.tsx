@@ -360,7 +360,7 @@ function Root() {
                   imagePlugin({ imageUploadHandler: uploadImageForEditor, imageAutocompleteSuggestions: imageSuggestions.length ? imageSuggestions : ['/uploads/'] }),
                   tablePlugin(),
                   codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
-                  codeMirrorPlugin({ codeBlockLanguages: { text: 'Plain text', markdown: 'Markdown', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JSX', tsx: 'TSX', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Shell', go: 'Go', sql: 'SQL', yaml: 'YAML', mermaid: 'Mermaid diagram' } }),
+                  codeMirrorPlugin({ codeBlockLanguages: { text: 'Plain text', markdown: 'Markdown', python: 'Python', py: 'Python', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JSX', tsx: 'TSX', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Shell', sh: 'Shell', go: 'Go', sql: 'SQL', yaml: 'YAML', yml: 'YAML', mermaid: 'Mermaid diagram' } }),
                   markdownShortcutPlugin(),
                   toolbarPlugin({toolbarContents: () => <ConditionalContents options={[
                     { when: editor => editor?.editorType === 'codeblock', contents: () => <ChangeCodeMirrorLanguage /> },

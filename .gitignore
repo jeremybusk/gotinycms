@@ -1,0 +1,10 @@
+bin/
+data/
+web/dist/
+web/node_modules/
+node_modules/
+.env
+dist/
+out/
+out.old/
+tmp/

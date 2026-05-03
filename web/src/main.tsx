@@ -1,0 +1,603 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, List, Modal, Popconfirm, Select, Space, Switch, Tabs, Typography, Upload, message, theme } from 'antd'
+import type { UploadProps } from 'antd'
+import { MDXEditor, headingsPlugin, listsPlugin, quotePlugin, thematicBreakPlugin, markdownShortcutPlugin, toolbarPlugin, UndoRedo, BoldItalicUnderlineToggles, ListsToggle, BlockTypeSelect, CreateLink, InsertImage, imagePlugin, linkDialogPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, InsertCodeBlock, CodeToggle, ConditionalContents, ChangeCodeMirrorLanguage, Separator, InsertTable, tablePlugin, InsertThematicBreak } from '@mdxeditor/editor'
+import '@mdxeditor/editor/style.css'
+import './style.css'
+import { api, ACLRule, ACLSettings, Asset, NavItem, Page, SiteSettings } from './api'
+
+const palettes = {
+  slate: { colorPrimary: '#2563eb', colorBgLayout: '#f4f7fb', colorText: '#172033', colorBorder: '#d8dee9' },
+  forest: { colorPrimary: '#3b7a57', colorBgLayout: '#f7f5ef', colorText: '#263238', colorBorder: '#e7e0d2' },
+  ember: { colorPrimary: '#b45309', colorBgLayout: '#fff7ed', colorText: '#292524', colorBorder: '#fed7aa' },
+  mono: { colorPrimary: '#111827', colorBgLayout: '#f9fafb', colorText: '#111827', colorBorder: '#e5e7eb' }
+}
+
+type Palette = keyof typeof palettes | 'custom'
+
+function slugify(s:string) { return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') }
+function pathify(s:string) {
+  if (/^https?:\/\//i.test(s) || /^mailto:/i.test(s) || /^tel:/i.test(s)) return s.trim()
+  const path = s.split('/').map(slugify).filter(Boolean).join('/')
+  return path ? `/${path}` : '/'
+}
+function freshPage() {
+  return { slug:'', path:'', title:'', meta_description:'', content_type:'page', tags:'', markdown:'# Untitled\n', published:false } as Page
+}
+function newID() {
+  return globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+function hexToRgb(hex:string) {
+  const cleaned = hex.replace('#', '')
+  const value = /^[0-9a-fA-F]{6}$/.test(cleaned) ? cleaned : '386bc0'
+  return `${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)}`
+}
+function isImage(url:string) {
+  return /\.(avif|gif|jpe?g|png|webp)$/i.test(url)
+}
+function assetMarkdown(asset: Asset) {
+  return isImage(asset.url) ? `![${asset.name}](${asset.url})` : `[${asset.name}](${asset.url})`
+}
+const emptyACL: ACLSettings = {
+  admin_default: 'allow',
+  public_default: 'allow',
+  admin_allow_countries: '',
+  admin_deny_countries: '',
+  public_allow_countries: '',
+  public_deny_countries: '',
+  rules: []
+}
+
+function Root() {
+  const [pages, setPages] = useState<Page[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [acl, setACL] = useState<ACLSettings>(emptyACL)
+  const [active, setActive] = useState<Page | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [savingACL, setSavingACL] = useState(false)
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
+  const [sourceMode, setSourceMode] = useState(false)
+  const [editorRev, setEditorRev] = useState(0)
+  const [palette, setPalette] = useState<Palette>('slate')
+  const [customPrimary, setCustomPrimary] = useState('#386bc0')
+  const [customSecondary, setCustomSecondary] = useState('#64748b')
+  const [adminDark, setAdminDark] = useState(false)
+  const [publicTheme, setPublicTheme] = useState<'light'|'dark'>('light')
+  const [publicPrimary, setPublicPrimary] = useState('#386bc0')
+  const [publicSecondary, setPublicSecondary] = useState('#64748b')
+  const [publicHeaderStyle, setPublicHeaderStyle] = useState<'neutral'|'accent-line'|'accent-bg'>('neutral')
+  const [form] = Form.useForm()
+  const [settingsForm] = Form.useForm<SiteSettings>()
+  const md = Form.useWatch('markdown', form) ?? ''
+  const menuItems = Form.useWatch('menu', settingsForm) || []
+  const selectedPalette = palette === 'custom'
+    ? { ...palettes.slate, colorPrimary: customPrimary }
+    : palettes[palette]
+  const adminTokens = {
+    colorPrimary: selectedPalette.colorPrimary,
+    colorBgLayout: adminDark ? '#0f172a' : selectedPalette.colorBgLayout,
+    colorBgContainer: adminDark ? '#172033' : '#ffffff',
+    colorBgElevated: adminDark ? '#1f2a3d' : '#ffffff',
+    colorText: adminDark ? '#e5edf8' : selectedPalette.colorText,
+    colorTextSecondary: adminDark ? '#9fb0c7' : '#657085',
+    colorBorder: adminDark ? '#2c3b52' : selectedPalette.colorBorder
+  }
+  const cfg = useMemo(() => ({
+    token: adminTokens,
+    algorithm: adminDark ? theme.darkAlgorithm : theme.defaultAlgorithm
+  }), [adminTokens, adminDark])
+  const adminVars = {
+    '--admin-primary': adminTokens.colorPrimary,
+    '--admin-primary-rgb': hexToRgb(adminTokens.colorPrimary),
+    '--admin-secondary': customSecondary,
+    '--admin-secondary-rgb': hexToRgb(customSecondary),
+    '--admin-bg': adminTokens.colorBgLayout,
+    '--admin-bg-soft': adminDark ? '#111827' : '#eaf1fb',
+    '--admin-surface': adminTokens.colorBgContainer,
+    '--admin-surface-2': adminDark ? '#1f2a3d' : '#f8fafc',
+    '--admin-text': adminTokens.colorText,
+    '--admin-muted': adminTokens.colorTextSecondary,
+    '--admin-border': adminTokens.colorBorder,
+    '--admin-shadow': adminDark ? '#00000055' : '#17203312'
+  } as React.CSSProperties
+  const imageSuggestions = assets.filter(asset => isImage(asset.url)).map(asset => asset.url)
+
+  async function loadPages() {
+    const r = await api.listPages()
+    setPages(r.pages)
+    if (!active && r.pages[0]) openPage(r.pages[0].slug)
+  }
+  async function loadSettings() {
+    const r = await api.getSettings()
+    settingsForm.setFieldsValue(r.settings)
+    setAdminDark(r.settings.admin_theme === 'dark')
+    setCustomPrimary(r.settings.admin_primary_color || '#386bc0')
+    setCustomSecondary(r.settings.admin_secondary_color || '#64748b')
+    if (r.settings.admin_palette) setPalette(r.settings.admin_palette)
+    setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
+    setPublicPrimary(r.settings.public_primary_color || '#386bc0')
+    setPublicSecondary(r.settings.public_secondary_color || '#64748b')
+    setPublicHeaderStyle(r.settings.public_header_style || 'neutral')
+  }
+  async function loadAssets() {
+    setLoadingAssets(true)
+    try {
+      const r = await api.listAssets()
+      setAssets(r.assets)
+    } finally {
+      setLoadingAssets(false)
+    }
+  }
+  async function loadACL() {
+    const r = await api.getACL()
+    setACL({ ...emptyACL, ...r.acl, rules: r.acl.rules || [] })
+  }
+  async function openPage(slug:string) {
+    const r = await api.getPage(slug)
+    setActive(r.page)
+    form.setFieldsValue(r.page)
+    setEditorRev(rev => rev + 1)
+  }
+  async function savePage() {
+    setSaving(true)
+    try {
+      const v = form.getFieldsValue()
+      const r = await api.savePage({ ...v, slug: slugify(v.slug || v.title || ''), path: pathify(v.path || v.slug || v.title || '') })
+      setActive(r.page)
+      form.setFieldsValue(r.page)
+      setEditorRev(rev => rev + 1)
+      await loadPages()
+      message.success('Page saved')
+    } catch(e:any) {
+      message.error(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+  async function saveSettings(overrides: Partial<SiteSettings> = {}) {
+    setSavingSettings(true)
+    try {
+      const values = { ...settingsForm.getFieldsValue(true), ...overrides }
+      const menu = ((values.menu || []) as NavItem[]).map(item => ({ ...item, id: item.id || newID(), parent_id: item.parent_id || '', url: pathify(item.url || ''), enabled: item.enabled !== false })).filter(item => item.label && item.url)
+      const r = await api.saveSettings({
+        ...values,
+        default_theme: values.default_theme || publicTheme,
+        public_primary_color: values.public_primary_color || publicPrimary,
+        public_secondary_color: values.public_secondary_color || publicSecondary,
+        public_header_style: values.public_header_style || publicHeaderStyle,
+        admin_theme: adminDark ? 'dark' : 'light',
+        admin_primary_color: adminTokens.colorPrimary,
+        admin_secondary_color: customSecondary,
+        admin_palette: palette,
+        menu
+      } as SiteSettings)
+      settingsForm.setFieldsValue(r.settings)
+      setPublicTheme(r.settings.default_theme === 'dark' ? 'dark' : 'light')
+      setPublicPrimary(r.settings.public_primary_color || '#386bc0')
+      setPublicSecondary(r.settings.public_secondary_color || '#64748b')
+      setPublicHeaderStyle(r.settings.public_header_style || 'neutral')
+      setCustomSecondary(r.settings.admin_secondary_color || '#64748b')
+      message.success('Site settings saved')
+    } catch(e:any) {
+      message.error(e.message)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+  async function saveACL() {
+    setSavingACL(true)
+    try {
+      const clean: ACLSettings = {
+        ...acl,
+        rules: acl.rules.map(rule => ({
+          ...rule,
+          cidr: rule.cidr.trim(),
+          note: rule.note.trim(),
+          enabled: rule.enabled !== false
+        })).filter(rule => rule.cidr)
+      }
+      const r = await api.saveACL(clean)
+      setACL({ ...emptyACL, ...r.acl, rules: r.acl.rules || [] })
+      message.success('Security rules saved')
+    } catch(e:any) {
+      message.error(e.message)
+    } finally {
+      setSavingACL(false)
+    }
+  }
+  function setACLField<K extends keyof ACLSettings>(key: K, value: ACLSettings[K]) {
+    setACL(current => ({ ...current, [key]: value }))
+  }
+  function addACLRule() {
+    setACL(current => ({ ...current, rules: [...current.rules, { scope: 'admin', action: 'allow', cidr: '', note: '', enabled: true }] }))
+  }
+  function updateACLRule(index:number, patch: Partial<ACLRule>) {
+    setACL(current => ({ ...current, rules: current.rules.map((rule, i) => i === index ? { ...rule, ...patch } : rule) }))
+  }
+  function removeACLRule(index:number) {
+    setACL(current => ({ ...current, rules: current.rules.filter((_, i) => i !== index) }))
+  }
+  async function removePage(slug:string) {
+    await api.deletePage(slug)
+    setActive(null)
+    form.resetFields()
+    await loadPages()
+  }
+  function newPage() {
+    const p = freshPage()
+    setActive(p)
+    form.setFieldsValue(p)
+    setSourceMode(false)
+    setEditorRev(rev => rev + 1)
+  }
+
+  useEffect(() => {
+    loadPages().catch(e => message.error(e.message))
+    loadSettings().catch(e => message.error(e.message))
+    loadAssets().catch(e => message.error(e.message))
+    loadACL().catch(e => message.error(e.message))
+  }, [])
+  useEffect(() => {
+    for (const [key, value] of Object.entries(adminVars)) {
+      document.documentElement.style.setProperty(key, String(value))
+    }
+  }, [adminVars])
+
+  async function upload(file: File) {
+    const data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+    return api.uploadFile(file.name, data)
+  }
+  async function uploadImageForEditor(file: File) {
+    const r = await upload(file)
+    setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+    return r.asset.url
+  }
+  function insertAsset(asset: Asset) {
+    form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n${assetMarkdown(asset)}\n`)
+    setEditorRev(rev => rev + 1)
+    setMediaOpen(false)
+    message.success('Asset inserted')
+  }
+
+  const contentUploadProps: UploadProps = {
+    showUploadList: false,
+    beforeUpload(file) {
+      upload(file).then(r => {
+        setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+        form.setFieldValue('markdown', `${form.getFieldValue('markdown') || ''}\n\n${assetMarkdown(r.asset)}\n`)
+        setEditorRev(rev => rev + 1)
+        message.success('Uploaded')
+      }).catch((e:any) => message.error(e.message))
+      return false
+    }
+  }
+  function settingsUploadProps(field: 'logo_url' | 'favicon_url'): UploadProps {
+    return {
+      showUploadList: false,
+      accept: field === 'favicon_url' ? '.ico,.png,.jpg,.jpeg,.webp' : '.png,.jpg,.jpeg,.webp,.avif',
+      beforeUpload(file) {
+        upload(file).then(r => {
+          setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+          settingsForm.setFieldValue(field, r.asset.url)
+          message.success(field === 'logo_url' ? 'Logo uploaded' : 'Favicon uploaded')
+        }).catch((e:any) => message.error(e.message))
+        return false
+      }
+    }
+  }
+  const mediaUploadProps: UploadProps = {
+    showUploadList: false,
+    beforeUpload(file) {
+      upload(file).then(r => {
+        setAssets(items => [r.asset, ...items.filter(item => item.id !== r.asset.id)])
+        message.success('Uploaded to media library')
+      }).catch((e:any) => message.error(e.message))
+      return false
+    }
+  }
+
+  return <ConfigProvider theme={cfg} getPopupContainer={trigger => trigger?.parentElement || document.body}><AntApp><Layout className="layout" style={adminVars}>
+    <Layout.Sider className="sider" width={310} breakpoint="lg" collapsedWidth={0}>
+      <div className="brand">UvooMiniCMS</div>
+      <Space wrap className="palettes">
+        {Object.keys(palettes).map(p => <Button key={p} size="small" type={p===palette?'primary':'default'} onClick={() => setPalette(p as Palette)}>{p}</Button>)}
+        <Button size="small" type={palette==='custom'?'primary':'default'} onClick={() => { setPalette('custom'); settingsForm.setFieldValue('admin_palette', 'custom') }}>custom</Button>
+        <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={checked => { setAdminDark(checked); settingsForm.setFieldValue('admin_theme', checked ? 'dark' : 'light') }} />
+      </Space>
+      <Button block type="primary" onClick={newPage}>New page</Button>
+      <List className="pages" dataSource={pages} renderItem={p => <List.Item className={active?.slug===p.slug?'selected':''} onClick={() => openPage(p.slug)}>
+        <List.Item.Meta title={p.title} description={`${p.path || `/${p.slug}`}${p.content_type === 'post' ? ' · post' : ''}${p.published ? '' : ' · draft'}`} />
+      </List.Item>} />
+    </Layout.Sider>
+    <Layout.Content className="content">
+      <Tabs defaultActiveKey="content" items={[
+        { key:'content', label:'Content', children:<Card className="editorCard">
+          <Form form={form} layout="vertical" onFinish={savePage} initialValues={freshPage()}>
+            <Space className="topbar" align="start">
+              <Typography.Title level={3}>{active?.id ? 'Edit page' : 'New page'}</Typography.Title>
+              <Space wrap>
+                <Switch checkedChildren="Markdown" unCheckedChildren="Editor" checked={sourceMode} onChange={setSourceMode} />
+                {active?.slug && active.slug !== 'home' && <Popconfirm title="Delete page?" onConfirm={() => removePage(active.slug)}><Button danger>Delete</Button></Popconfirm>}
+                <Button href={active?.path || '/'} target="_blank">View</Button>
+                <Button type="primary" htmlType="submit" loading={saving}>Save</Button>
+              </Space>
+            </Space>
+            <Form.Item name="title" label="Title" rules={[{required:true}]}><Input onBlur={() => {
+              const title = form.getFieldValue('title') || ''
+              if (!form.getFieldValue('slug')) form.setFieldValue('slug', slugify(title))
+              if (!form.getFieldValue('path')) form.setFieldValue('path', pathify(title))
+            }} /></Form.Item>
+            <Space className="routeGrid" align="start">
+              <Form.Item name="slug" label="Admin slug" rules={[{required:true}]}><Input addonBefore="id:" /></Form.Item>
+              <Form.Item name="path" label="Public route / SEO URL" rules={[{required:true}]}><Input placeholder="/about/company" /></Form.Item>
+              <Form.Item name="content_type" label="Type" rules={[{required:true}]}><Select options={[{label:'Page', value:'page'}, {label:'Post', value:'post'}]} /></Form.Item>
+              <Form.Item name="published" label="Published" valuePropName="checked"><Switch /></Form.Item>
+            </Space>
+            <Form.Item name="meta_description" label="SEO description"><Input.TextArea rows={2} maxLength={180} showCount placeholder="Short search/social description for this route." /></Form.Item>
+            <Form.Item name="tags" label="Tags"><Input placeholder="news, services, security" /></Form.Item>
+            <Space wrap>
+              <Upload {...contentUploadProps}><Button>Upload image/file and insert Markdown link</Button></Upload>
+              <Button onClick={() => { setMediaOpen(true); loadAssets().catch((e:any) => message.error(e.message)) }}>Browse existing uploads</Button>
+            </Space>
+            <Form.Item name="markdown" label="Body" className="mdField">
+              {sourceMode
+                ? <Input.TextArea rows={22} className="sourceEditor" value={md} onChange={e => form.setFieldValue('markdown', e.target.value)} />
+                : <MDXEditor key={`${active?.slug || 'new'}-${active?.updated_at || ''}-${editorRev}`} className={adminDark ? 'tinyMdx dark-theme' : 'tinyMdx'} contentEditableClassName="tinyMdxContent" markdown={md} onChange={v => form.setFieldValue('markdown', v)} plugins={[
+                  headingsPlugin(),
+                  listsPlugin(),
+                  quotePlugin(),
+                  thematicBreakPlugin(),
+                  linkPlugin(),
+                  linkDialogPlugin(),
+                  imagePlugin({ imageUploadHandler: uploadImageForEditor, imageAutocompleteSuggestions: imageSuggestions.length ? imageSuggestions : ['/uploads/'] }),
+                  tablePlugin(),
+                  codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
+                  codeMirrorPlugin({ codeBlockLanguages: { text: 'Plain text', markdown: 'Markdown', python: 'Python', py: 'Python', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JSX', tsx: 'TSX', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Shell', sh: 'Shell', go: 'Go', sql: 'SQL', yaml: 'YAML', yml: 'YAML', mermaid: 'Mermaid diagram' } }),
+                  markdownShortcutPlugin(),
+                  toolbarPlugin({toolbarContents: () => <ConditionalContents options={[
+                    { when: editor => editor?.editorType === 'codeblock', contents: () => <ChangeCodeMirrorLanguage /> },
+                    { fallback: () => <><UndoRedo /><Separator /><BoldItalicUnderlineToggles /><CodeToggle /><ListsToggle /><BlockTypeSelect /><Separator /><CreateLink /><InsertImage /><Separator /><InsertTable /><InsertThematicBreak /><InsertCodeBlock /></> }
+                  ]} />})
+                ]} />}
+            </Form.Item>
+          </Form>
+          <Modal title="Browse uploads" open={mediaOpen} onCancel={() => setMediaOpen(false)} footer={null} width={920} className="mediaModal">
+            <MediaBrowser assets={assets} loading={loadingAssets} onInsert={insertAsset} onRefresh={() => loadAssets().catch((e:any) => message.error(e.message))} uploadProps={mediaUploadProps} />
+          </Modal>
+        </Card> },
+        { key:'media', label:'Media', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Media library</Typography.Title>
+              <Typography.Text type="secondary">Browse uploaded files and insert reusable images into the active page.</Typography.Text>
+            </div>
+            <Space wrap>
+              <Upload {...mediaUploadProps}><Button type="primary">Upload media</Button></Upload>
+              <Button onClick={() => loadAssets().catch((e:any) => message.error(e.message))} loading={loadingAssets}>Refresh</Button>
+            </Space>
+          </Space>
+          <MediaBrowser assets={assets} loading={loadingAssets} onInsert={insertAsset} onRefresh={() => loadAssets().catch((e:any) => message.error(e.message))} uploadProps={mediaUploadProps} />
+        </Card> },
+        { key:'site', label:'Site', children:<Card className="editorCard">
+          <Form form={settingsForm} layout="vertical" onFinish={() => saveSettings()} initialValues={{site_name:'UvooMiniCMS', default_theme:'light', public_primary_color:'#386bc0', public_secondary_color:'#64748b', public_header_style:'neutral', admin_theme:'light', admin_primary_color:'#386bc0', admin_secondary_color:'#64748b', admin_palette:'slate', nav_layout:'top', footer_markdown:'', logo_enabled:true, favicon_enabled:true, menu_enabled:true, footer_enabled:true, theme_toggle_enabled:true, icons_enabled:true, search_enabled:true, menu:[{id:'home', parent_id:'', label:'Home', url:'/', external:false, enabled:true}]}}>
+            <Space className="topbar" align="start">
+              <div>
+                <Typography.Title level={3}>Site settings</Typography.Title>
+                <Typography.Text type="secondary">Logo, favicon, top menu, footer, and public light/dark default.</Typography.Text>
+              </div>
+              <Button type="primary" htmlType="submit" loading={savingSettings}>Save site</Button>
+            </Space>
+            <Space className="switchGrid" wrap>
+              <Form.Item name="logo_enabled" label="Logo" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="favicon_enabled" label="Favicon" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="menu_enabled" label="Top menu" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="footer_enabled" label="Footer" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="theme_toggle_enabled" label="Guest theme toggle" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="icons_enabled" label="Font Awesome icons" valuePropName="checked"><Switch /></Form.Item>
+              <Form.Item name="search_enabled" label="Search" valuePropName="checked"><Switch /></Form.Item>
+            </Space>
+            <Form.Item name="site_name" label="Site name" rules={[{required:true}]}><Input /></Form.Item>
+            <Space className="assetGrid" align="start">
+              <Form.Item name="logo_url" label="Logo URL"><Input placeholder="/uploads/..." /></Form.Item>
+              <Upload {...settingsUploadProps('logo_url')}><Button>Upload logo</Button></Upload>
+              <Form.Item name="favicon_url" label="Favicon URL"><Input placeholder="/uploads/..." /></Form.Item>
+              <Upload {...settingsUploadProps('favicon_url')}><Button>Upload favicon</Button></Upload>
+            </Space>
+            <Form.Item name="default_theme" label="Public default theme"><Select onChange={value => setPublicTheme(value)} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} /></Form.Item>
+            <Form.Item name="nav_layout" label="Public navigation layout"><Select options={[{label:'Top menu', value:'top'}, {label:'Side drawer', value:'side'}]} /></Form.Item>
+            <Typography.Title level={4}>Top menu</Typography.Title>
+            <Form.List name="menu">{(fields, { add, remove }) => <>
+              {fields.map(field => <Space key={field.key} className="menuRow" align="start">
+                <Form.Item {...field} name={[field.name, 'id']} hidden><Input /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'label']} label="Label" rules={[{required:true}]}><Input placeholder="About" /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'url']} label="URL" rules={[{required:true}]}><Input placeholder="/about or https://..." /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'parent_id']} label="Parent"><Select allowClear placeholder="Top level" options={(menuItems || []).filter((item, i) => i !== field.name && item?.id).map(item => ({label: item.label || item.url || item.id, value: item.id}))} /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'external']} label="External" valuePropName="checked"><Switch /></Form.Item>
+                <Form.Item {...field} name={[field.name, 'enabled']} label="Enabled" valuePropName="checked"><Switch /></Form.Item>
+                <Button danger onClick={() => remove(field.name)}>Remove</Button>
+              </Space>)}
+              <Button onClick={() => add({id:newID(), parent_id:'', label:'', url:'/', external:false, enabled:true})}>Add menu item</Button>
+            </>}</Form.List>
+            <Form.Item name="footer_markdown" label="Global footer Markdown" className="footerField"><Input.TextArea rows={6} placeholder="© 2026 Your Company. All rights reserved." /></Form.Item>
+          </Form>
+        </Card> },
+        { key:'security', label:'Security', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Security</Typography.Title>
+              <Typography.Text type="secondary">Small SQLite-backed network rules for admin/API and public traffic. Environment CIDR rules still run first.</Typography.Text>
+            </div>
+            <Button type="primary" loading={savingACL} onClick={saveACL}>Save security</Button>
+          </Space>
+          <Typography.Paragraph type="secondary" className="securityNote">
+            Use CIDR rules like <code>203.0.113.10/32</code>, <code>198.51.100.0/24</code>, or <code>2001:db8::/32</code>. Country rules require <code>CMS_MAXMIND_DB</code>; leave allow lists empty unless you want to restrict to only those countries.
+          </Typography.Paragraph>
+          <div className="securityGrid">
+            <label>
+              <Typography.Text strong>Admin/API default</Typography.Text>
+              <Select value={acl.admin_default} onChange={value => setACLField('admin_default', value)} options={[{label:'Allow unless denied', value:'allow'}, {label:'Deny unless allowed', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text strong>Public/uploads default</Typography.Text>
+              <Select value={acl.public_default} onChange={value => setACLField('public_default', value)} options={[{label:'Allow unless denied', value:'allow'}, {label:'Deny unless allowed', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text strong>Admin country allow</Typography.Text>
+              <Input value={acl.admin_allow_countries} onChange={e => setACLField('admin_allow_countries', e.target.value)} placeholder="US, CA" />
+            </label>
+            <label>
+              <Typography.Text strong>Admin country deny</Typography.Text>
+              <Input value={acl.admin_deny_countries} onChange={e => setACLField('admin_deny_countries', e.target.value)} placeholder="RU, KP" />
+            </label>
+            <label>
+              <Typography.Text strong>Public country allow</Typography.Text>
+              <Input value={acl.public_allow_countries} onChange={e => setACLField('public_allow_countries', e.target.value)} placeholder="US, CA, GB" />
+            </label>
+            <label>
+              <Typography.Text strong>Public country deny</Typography.Text>
+              <Input value={acl.public_deny_countries} onChange={e => setACLField('public_deny_countries', e.target.value)} placeholder="RU, KP" />
+            </label>
+          </div>
+          <Space className="aclHeader" align="center">
+            <Typography.Title level={4}>CIDR rules</Typography.Title>
+            <Button onClick={addACLRule}>Add rule</Button>
+          </Space>
+          {acl.rules.length === 0 && <div className="emptyMedia"><Typography.Text type="secondary">No database ACL rules yet. Defaults and environment rules still apply.</Typography.Text></div>}
+          {acl.rules.map((rule, index) => <div className="aclRow" key={`${rule.id || 'new'}-${index}`}>
+            <label>
+              <Typography.Text>Scope</Typography.Text>
+              <Select value={rule.scope} onChange={value => updateACLRule(index, { scope: value })} options={[{label:'All', value:'all'}, {label:'Admin/API', value:'admin'}, {label:'Public', value:'public'}]} />
+            </label>
+            <label>
+              <Typography.Text>Action</Typography.Text>
+              <Select value={rule.action} onChange={value => updateACLRule(index, { action: value })} options={[{label:'Allow', value:'allow'}, {label:'Deny', value:'deny'}]} />
+            </label>
+            <label>
+              <Typography.Text>CIDR</Typography.Text>
+              <Input value={rule.cidr} onChange={e => updateACLRule(index, { cidr: e.target.value })} placeholder="203.0.113.10/32" />
+            </label>
+            <label className="aclSwitch">
+              <Typography.Text>Enabled</Typography.Text>
+              <Switch checked={rule.enabled !== false} onChange={checked => updateACLRule(index, { enabled: checked })} />
+            </label>
+            <label>
+              <Typography.Text>Note</Typography.Text>
+              <Input value={rule.note} onChange={e => updateACLRule(index, { note: e.target.value })} placeholder="office, VPN, vendor" />
+            </label>
+            <Button danger onClick={() => removeACLRule(index)}>Remove</Button>
+          </div>)}
+          <Space wrap className="securityActions">
+            <Button onClick={addACLRule}>Add rule</Button>
+            <Button type="primary" loading={savingACL} onClick={saveACL}>Save security</Button>
+          </Space>
+        </Card> },
+        { key:'theme', label:'Theme', children:<Card className="editorCard">
+          <Space className="topbar" align="start">
+            <div>
+              <Typography.Title level={3}>Theme</Typography.Title>
+              <Typography.Text type="secondary">Set the saved admin and public themes independently, with the same light/dark and color controls for both.</Typography.Text>
+            </div>
+          </Space>
+          <Space wrap className="themePicker">
+            {Object.keys(palettes).map(p => <Button key={p} type={p===palette?'primary':'default'} onClick={() => { setPalette(p as Palette); settingsForm.setFieldValue('admin_palette', p) }}>{p}</Button>)}
+            <Button type={palette==='custom'?'primary':'default'} onClick={() => { setPalette('custom'); settingsForm.setFieldValue('admin_palette', 'custom') }}>Custom</Button>
+            <Switch checkedChildren="Dark" unCheckedChildren="Light" checked={adminDark} onChange={checked => { setAdminDark(checked); settingsForm.setFieldValue('admin_theme', checked ? 'dark' : 'light') }} />
+          </Space>
+          <Form layout="vertical" className="customThemeForm">
+            <Typography.Title level={4}>Admin theme</Typography.Title>
+            <Form.Item label="Default mode">
+              <Select className="themeSelect" value={adminDark ? 'dark' : 'light'} onChange={value => { setAdminDark(value === 'dark'); settingsForm.setFieldValue('admin_theme', value) }} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} />
+            </Form.Item>
+            <Form.Item label="Custom primary color">
+              <Space>
+                <Input type="color" value={customPrimary} onChange={e => { setCustomPrimary(e.target.value); setPalette('custom'); settingsForm.setFieldValue('admin_primary_color', e.target.value); settingsForm.setFieldValue('admin_palette', 'custom') }} className="colorInput" />
+                <Input value={customPrimary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setCustomPrimary(value); setPalette('custom'); settingsForm.setFieldValue('admin_primary_color', value); settingsForm.setFieldValue('admin_palette', 'custom') }} />
+              </Space>
+            </Form.Item>
+            <Form.Item label="Custom secondary color">
+              <Space>
+                <Input type="color" value={customSecondary} onChange={e => { setCustomSecondary(e.target.value); settingsForm.setFieldValue('admin_secondary_color', e.target.value) }} className="colorInput" />
+                <Input value={customSecondary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setCustomSecondary(value); settingsForm.setFieldValue('admin_secondary_color', value) }} />
+              </Space>
+            </Form.Item>
+            <Button type="primary" loading={savingSettings} onClick={() => saveSettings()}>Save admin theme</Button>
+            <Typography.Paragraph type="secondary">Suggested primary: <code>#386bc0</code>. The admin background, buttons, inputs, tabs, editor, sliders, and selected states derive from the active theme.</Typography.Paragraph>
+          </Form>
+          <div className="publicThemePanel">
+            <Typography.Title level={4}>Public theme</Typography.Title>
+            <Typography.Paragraph type="secondary">These settings are saved and applied to visitor-facing pages.</Typography.Paragraph>
+            <Space wrap align="end">
+              <div>
+                <Typography.Text>Default mode</Typography.Text>
+                <Select className="themeSelect" value={publicTheme} onChange={value => { setPublicTheme(value); settingsForm.setFieldValue('default_theme', value) }} options={[{label:'Light', value:'light'}, {label:'Dark', value:'dark'}]} />
+              </div>
+              <div>
+                <Typography.Text>Primary color</Typography.Text>
+                <Space>
+                  <Input type="color" value={publicPrimary} onChange={e => { setPublicPrimary(e.target.value); settingsForm.setFieldValue('public_primary_color', e.target.value) }} className="colorInput" />
+                  <Input value={publicPrimary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setPublicPrimary(value); settingsForm.setFieldValue('public_primary_color', value) }} />
+                </Space>
+              </div>
+              <div>
+                <Typography.Text>Secondary color</Typography.Text>
+                <Space>
+                  <Input type="color" value={publicSecondary} onChange={e => { setPublicSecondary(e.target.value); settingsForm.setFieldValue('public_secondary_color', e.target.value) }} className="colorInput" />
+                  <Input value={publicSecondary} onChange={e => { const value = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`; setPublicSecondary(value); settingsForm.setFieldValue('public_secondary_color', value) }} />
+                </Space>
+              </div>
+              <div>
+                <Typography.Text>Header style</Typography.Text>
+                <Select className="themeSelect" value={publicHeaderStyle} onChange={value => { setPublicHeaderStyle(value); settingsForm.setFieldValue('public_header_style', value) }} options={[
+                  {label:'Neutral', value:'neutral'},
+                  {label:'Accent line', value:'accent-line'},
+                  {label:'Accent background', value:'accent-bg'}
+                ]} />
+              </div>
+              <Button onClick={() => { setPublicPrimary(adminTokens.colorPrimary); settingsForm.setFieldValue('public_primary_color', adminTokens.colorPrimary) }}>Use admin primary</Button>
+              <Button type="primary" loading={savingSettings} onClick={() => saveSettings({ default_theme: publicTheme, public_primary_color: publicPrimary, public_secondary_color: publicSecondary, public_header_style: publicHeaderStyle })}>Save public theme</Button>
+            </Space>
+          </div>
+        </Card> }
+      ]} />
+    </Layout.Content>
+  </Layout></AntApp></ConfigProvider>
+}
+
+function MediaBrowser({ assets, loading, onInsert, onRefresh, uploadProps }: { assets: Asset[]; loading: boolean; onInsert: (asset: Asset) => void; onRefresh: () => void; uploadProps: UploadProps }) {
+  const images = assets.filter(asset => isImage(asset.url))
+  const files = assets.filter(asset => !isImage(asset.url))
+  return <div>
+    <Space wrap className="mediaActions">
+      <Upload {...uploadProps}><Button>Upload file</Button></Upload>
+      <Button onClick={onRefresh} loading={loading}>Refresh</Button>
+      <Typography.Text type="secondary">{assets.length} upload(s)</Typography.Text>
+    </Space>
+    <Tabs items={[
+      { key:'images', label:`Images (${images.length})`, children: images.length ? <div className="mediaGrid">
+        {images.map(asset => <div className="mediaTile" key={asset.id}>
+          <button type="button" className="mediaPreview" onClick={() => onInsert(asset)} aria-label={`Insert ${asset.name}`}>
+            <img src={asset.url} alt={asset.name} />
+          </button>
+          <Typography.Text ellipsis title={asset.name}>{asset.name}</Typography.Text>
+          <Space wrap>
+            <Button size="small" type="primary" onClick={() => onInsert(asset)}>Insert</Button>
+            <Button size="small" href={asset.url} target="_blank">View</Button>
+          </Space>
+        </div>)}
+      </div> : <div className="emptyMedia"><Typography.Text type="secondary">No uploaded images yet.</Typography.Text></div> },
+      { key:'files', label:`Files (${files.length})`, children: files.length ? <List className="mediaFileList" dataSource={files} renderItem={asset => <List.Item actions={[<Button size="small" type="primary" onClick={() => onInsert(asset)}>Insert link</Button>, <Button size="small" href={asset.url} target="_blank">View</Button>]}>
+        <List.Item.Meta title={asset.name} description={`${Math.round(asset.size / 1024)} KB · ${asset.url}`} />
+      </List.Item>} /> : <div className="emptyMedia"><Typography.Text type="secondary">No uploaded files yet.</Typography.Text></div> }
+    ]} />
+  </div>
+}
+
+createRoot(document.getElementById('root')!).render(<Root />)

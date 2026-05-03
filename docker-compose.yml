@@ -1,0 +1,11 @@
+services:
+  uvoominicms:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      # - ${PWD}/data:/app/data
+      # Optional MaxMind DB:
+      # - ./GeoLite2-Country.mmdb:/app/GeoLite2-Country.mmdb:ro

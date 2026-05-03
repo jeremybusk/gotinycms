@@ -80,6 +80,39 @@ cp .env.example .env
 
 The binary must be built for the same Linux libc family it will run on. Copying `/app/uvoominicms` out of the Alpine Docker image can fail on Ubuntu/Debian with `cannot execute: required file not found` because that container binary expects Alpine musl libraries. Use `scripts/package.sh` on the target distro, or publish separate distro-compatible tarballs.
 
+## Linux deb/rpm Packages
+
+For distro-style installs, this repo uses a small `nFPM` config. `nFPM` is also what GoReleaser uses for package generation, so this keeps manual packaging simple while leaving room to add GoReleaser later.
+
+Install `nfpm`, then run:
+
+```bash
+make package-linux
+# creates .deb and .rpm packages in dist/
+```
+
+You can choose formats with:
+
+```bash
+FORMATS=deb make package-linux
+FORMATS=rpm make package-linux
+```
+
+The packages install:
+
+- binary: `/usr/bin/uvoominicms`
+- web assets: `/usr/share/uvoominicms/web/dist`
+- config: `/etc/uvoominicms/uvoominicms.env`
+- data/uploads: `/var/lib/uvoominicms`
+- systemd unit: `uvoominicms.service`
+
+The package creates a locked-down `uvoominicms` system user, enables the systemd service, and leaves the service stopped until the admin password is changed. After install:
+
+```bash
+sudo editor /etc/uvoominicms/uvoominicms.env
+sudo systemctl start uvoominicms
+```
+
 ## Docker
 
 ```bash

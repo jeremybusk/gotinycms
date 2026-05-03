@@ -1,4 +1,4 @@
-.PHONY: dev build package run web docker-up docker-build docker-down
+.PHONY: dev build package package-linux run web docker-up docker-build docker-down
 
 web:
 	cd web && npm install && npm run build
@@ -8,6 +8,9 @@ build:
 
 package:
 	bash scripts/package.sh
+
+package-linux:
+	bash scripts/package-linux.sh
 
 run: build
 	./bin/uvoominicms
